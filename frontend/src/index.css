@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    margin: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #F8FAFC;
+    color: #0F172A;
+}
+
+h1, h2, h3, h4, h5, .font-display {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+@layer base {
+    :root {
+        --background: 210 40% 98%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 221 83% 53%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 210 40% 96%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 210 40% 96%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 210 40% 96%;
+        --accent-foreground: 222 47% 11%;
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 221 83% 53%;
+        --radius: 0.65rem;
+    }
+}
+
+@layer base {
+    * { @apply border-border; }
+    body { @apply bg-background text-foreground; }
+    button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
+    input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px #fff, 0 0 0 4px hsl(var(--ring));
+    }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ---------- Decorative backgrounds ---------- */
+.bg-grid {
+    background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+    background-size: 18px 18px;
+}
+.bg-grid-faint {
+    background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+    background-size: 22px 22px;
+}
+.bg-mesh {
+    background:
+      radial-gradient(60% 50% at 15% 0%, rgba(37,99,235,0.06), transparent 70%),
+      radial-gradient(50% 50% at 100% 0%, rgba(99,102,241,0.06), transparent 70%);
+}
+
+/* ---------- Animations ---------- */
+@keyframes fade-in-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes slide-in-right { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes grow-w { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+@keyframes float-slow { 0%,100% { transform: translate(0,0); } 50% { transform: translate(0,-14px); } }
+
+.animate-in-up { animation: fade-in-up 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+.animate-fade { animation: fade-in 0.4s ease-out both; }
+.animate-scale { animation: scale-in 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+.animate-slide { animation: slide-in-right 0.4s ease-out both; }
+.animate-float { animation: float-slow 9s ease-in-out infinite; }
+
+.stagger > * { animation: fade-in-up 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.03s; }
+.stagger > *:nth-child(2) { animation-delay: 0.07s; }
+.stagger > *:nth-child(3) { animation-delay: 0.11s; }
+.stagger > *:nth-child(4) { animation-delay: 0.15s; }
+.stagger > *:nth-child(5) { animation-delay: 0.19s; }
+.stagger > *:nth-child(6) { animation-delay: 0.23s; }
+.stagger > *:nth-child(7) { animation-delay: 0.27s; }
+.stagger > *:nth-child(8) { animation-delay: 0.31s; }
+
+/* Skeleton shimmer */
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    background: #eef2f7;
+    border-radius: 8px;
+}
+.skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+    animation: shimmer 1.4s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .skeleton::after { animation: none; }
+}

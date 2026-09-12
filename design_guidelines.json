@@ -1,0 +1,122 @@
+{
+  "app_name": "RecRoute39",
+  "tagline": "Recruit • Track • Hire",
+  "app_type": "saas_app",
+  "design_archetype": "The Performance Pro & Tactical Command Center (Polished Light Theme)",
+  "theme": {
+    "mode": "light",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "surface_secondary": "#F1F5F9",
+    "card_background": "#FFFFFF",
+    "border_color": "#E2E8F0",
+    "border_subtle": "#F1F5F9"
+  },
+  "typography": {
+    "font_family_headings": "Plus Jakarta Sans, Inter, sans-serif",
+    "font_family_body": "Inter, system-ui, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "scale": {
+      "hero": "text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight",
+      "h1": "text-3xl sm:text-4xl font-bold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "h4": "text-lg font-semibold",
+      "body_lg": "text-base font-normal leading-relaxed",
+      "body": "text-sm font-normal leading-normal",
+      "caption": "text-xs font-medium text-slate-500 tracking-wide",
+      "label": "text-xs font-semibold uppercase tracking-wider text-slate-600"
+    }
+  },
+  "colors": {
+    "primary": {
+      "default": "#2563EB",
+      "hover": "#1D4ED8",
+      "active": "#1E40AF",
+      "light": "#EFF6FF",
+      "border": "#BFDBFE"
+    },
+    "brand": {
+      "blue": "#2563EB",
+      "navy": "#0F172A",
+      "gradient_from": "#2563EB",
+      "gradient_to": "#3B82F6"
+    },
+    "status_badges": {
+      "new": { "bg": "#EFF6FF", "text": "#1D4ED8", "border": "#BFDBFE" },
+      "contacted": { "bg": "#F0FDFA", "text": "#0D9488", "border": "#99F6E4" },
+      "interview": { "bg": "#F5F3FF", "text": "#6D28D9", "border": "#DDD6FE" },
+      "shortlisted": { "bg": "#FEF3C7", "text": "#B45309", "border": "#FDE68A" },
+      "approval_pending": { "bg": "#FFF7ED", "text": "#C2410C", "border": "#FFEDD5" },
+      "selected": { "bg": "#ECFDF5", "text": "#047857", "border": "#A7F3D0" },
+      "joined": { "bg": "#F0FDF4", "text": "#15803D", "border": "#BBF7D0" },
+      "rejected": { "bg": "#FEF2F2", "text": "#B91C1C", "border": "#FECACA" }
+    },
+    "neutrals": {
+      "slate_900": "#0F172A",
+      "slate_800": "#1E293B",
+      "slate_700": "#334155",
+      "slate_600": "#475569",
+      "slate_500": "#64748B",
+      "slate_400": "#94A3B8",
+      "slate_300": "#CBD5E1",
+      "slate_200": "#E2E8F0",
+      "slate_100": "#F1F5F9",
+      "slate_50": "#F8FAFC"
+    }
+  },
+  "visual_enhancers": {
+    "background_patterns": [
+      "Subtle 24px grid overlay with low opacity (`bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px]`)",
+      "Soft animated blue ambient gradient blob in top right header background (`bg-gradient-to-tr from-blue-50/40 via-indigo-50/20 to-transparent`)"
+    ],
+    "card_styles": {
+      "default": "bg-white border border-slate-200/80 rounded-xl shadow-[0_1px_3px_0_rgba(15,23,42,0.03),0_1px_2px_-1px_rgba(15,23,42,0.03)] hover:shadow-md hover:border-slate-300 transition-all duration-200",
+      "kpi": "relative overflow-hidden bg-white border border-slate-200/80 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200 group",
+      "highlight": "bg-gradient-to-br from-white via-slate-50/50 to-blue-50/30 border border-blue-100 rounded-xl shadow-sm"
+    },
+    "glassmorphism": "backdrop-blur-md bg-white/80 border border-white/60 shadow-sm",
+    "drag_drop_upload": "border-2 border-dashed border-blue-200 hover:border-blue-500 bg-blue-50/30 hover:bg-blue-50/60 transition-all duration-200 rounded-xl p-8 text-center cursor-pointer"
+  },
+  "grids_and_layouts": {
+    "dashboard_kpi_grid": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5",
+    "main_content_split": "grid grid-cols-1 lg:grid-cols-12 gap-6",
+    "funnel_visualizer": "flex flex-col sm:flex-row items-center justify-between gap-2 overflow-x-auto pb-2",
+    "mobile_table_card_pattern": "hidden md:table for desktop, grid grid-cols-1 gap-3 md:hidden for mobile"
+  },
+  "motion": {
+    "default_transition": "transition-all duration-200 ease-out",
+    "stagger_animation": "animate-in-up",
+    "hover_lift": "hover:-translate-y-0.5 transition-transform duration-200",
+    "prefers_reduced_motion": "@media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }"
+  },
+  "accessibility": {
+    "contrast_ratio": "Minimum 4.5:1 for body text against backgrounds",
+    "focus_rings": "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2",
+    "testing_attributes": "All interactive elements (buttons, inputs, filters, candidate rows, modals, navigation links) MUST include data-testid attributes in kebab-case."
+  },
+  "image_urls": [
+    "https://images.unsplash.com/photo-1762330463265-07c5ac9b98cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjByZWNydWl0ZXIlMjBhdmF0YXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODkxMDMwNjF8MA&ixlib=rb-4.1.0&q=85",
+    "https://images.unsplash.com/photo-1758520144427-ddb02ac74e9d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjByZWNydWl0ZXIlMjBhdmF0YXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODkxMDMwNjF8MA&ixlib=rb-4.1.0&q=85"
+  ],
+  "instructions_to_main_agent": [
+    "Retain all existing APIs, endpoints, state variables, user roles (HR, Management, Admin), and workflow logic.",
+    "Elevate the visual styling of all 8 KPI cards with subtle background SVG accent graphics, sleek iconography, hover lift effects, and crisp typography.",
+    "Enhance the candidate recruitment funnel visualizer with step connections, active count pill badges, and smooth progress styling.",
+    "Upgrade the Candidate Profile header with sleek avatar badges, quick action triggers, and a vertical append-only HR updates timeline featuring timestamp dots, user avatars, and status change tags.",
+    "Refine the Drag & Drop resume upload area with an inviting dotted dropzone, clear upload indicators, progress states, and file preview/download actions.",
+    "Ensure mobile responsiveness: tables convert gracefully to touch-friendly cards on small screens, sidebar converts to drawer menu, single-column forms.",
+    "Incorporate Skeleton Loaders for data fetching states and polished empty states with subtle Lucide iconography for empty queues or search results.",
+    "Ensure every single interactive element, link, form input, button, table cell trigger, modal action, and status badge maintains accurate data-testid attributes."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "DO NOT use generic unstyled tables or plain default inputs.",
+    "DO NOT use full screen dark gradients; maintain the crisp light command center theme.",
+    "DO NOT apply transition: all globally. Specify transition-color, opacity, or transform explicitly.",
+    "ALWAYS explicit hover text color when hover background changes.",
+    "ALWAYS ensure data-testid is present on interactive components for stable test automation."
+  ]
+},
+  "overwrite": true,
+  "path": "/app/design_guidelines.json"
+}
