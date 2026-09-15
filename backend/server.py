@@ -237,7 +237,7 @@ async def login(body: LoginBody, request: Request, response: Response):
     email = body.email.strip().lower()
     ip = request.client.host if request.client else "unknown"
     await check_lockout(ip, email)
-    user = await db.users.find_one({"email": email})
+    user = await db.users.find_one({"$or": [{"email": email}, {"phone": email}]})
     if not user or not verify_password(body.password, user["password_hash"]):
         await db.login_attempts.insert_one({"identifier": f"{ip}:{email}", "email": email, "at": now_iso()})
         raise HTTPException(status_code=401, detail="Invalid email or password")
