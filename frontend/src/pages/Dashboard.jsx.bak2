@@ -23,8 +23,8 @@ const CARDS = [
   { key: "Approval Pending", label: "Approval Pending", icon: ClipboardCheck, tint: "text-orange-700 bg-orange-100", glow: "from-orange-200/40", status: "Approval Pending" },
   { key: "Selected", label: "Selected", icon: CheckCircle2, tint: "text-emerald-700 bg-emerald-100", glow: "from-emerald-200/40", status: "Selected" },
   { key: "Rejected", label: "Rejected", icon: XCircle, tint: "text-rose-700 bg-rose-100", glow: "from-rose-200/40", status: "Rejected" },
-  { key: "Send Back", label: "Send Back", icon: RotateCcw, tint: "text-fuchsia-700 bg-fuchsia-100", glow: "from-fuchsia-200/40", status: "Send Back" },
   { key: "Joined", label: "Joined", icon: Briefcase, tint: "text-green-800 bg-green-100", glow: "from-green-200/40", status: "Joined" },
+  { key: "Send Back", label: "Send Back", icon: RotateCcw, tint: "text-fuchsia-700 bg-fuchsia-100", glow: "from-fuchsia-200/40", status: "Send Back" },
 ];
 
 const FUNNEL = [
@@ -33,10 +33,18 @@ const FUNNEL = [
 ];
 
 const HR_ADMIN_MESSAGES = [
+  "There are multiple candidates pending approval. Please review and approve them.",
+  "Several candidates are waiting for your approval. Kindly review them.",
+  "Please review the pending candidates and take the necessary action.",
+  "Candidates are pending approval. Kindly review and approve them.",
   "Multiple candidates are awaiting approval. Please review them at the earliest.",
   "Please check the pending approval candidates and update their status.",
   "There are candidates waiting for management approval. Kindly review them.",
   "Urgent: Multiple candidates are awaiting approval. Please review them.",
+  "Please review the candidates currently pending approval.",
+  "Kindly review and process the pending candidate approvals.",
+  "Pending approvals require your attention. Please review them.",
+  "Please review the pending candidates and approve or send them back as required.",
 ];
 
 export default function Dashboard() {
@@ -45,7 +53,7 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [adminNotifications, setAdminNotifications] = useState([]);
   const [hrMessage, setHrMessage] = useState(
-    "Multiple candidates are awaiting approval. Please review them at the earliest."
+    "There are multiple candidates pending approval. Please review and approve them."
   );
   const [selectedHRMessage, setSelectedHRMessage] = useState("pending-review");
   const [sendingHRMessage, setSendingHRMessage] = useState(false);
@@ -101,7 +109,7 @@ export default function Dashboard() {
       await api.post("/notifications/hr-message", { message });
       toast.success("Message sent to Admin");
       setHrMessage(
-        "Multiple candidates are awaiting approval. Please review them at the earliest."
+        "There are multiple candidates pending approval. Please review and approve them."
       );
     } catch (err) {
       toast.error(
@@ -340,7 +348,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pending Approvals */}
-        <div className={`${role === "hr" ? "lg:col-span-3" : "lg:col-span-1"} bg-white rounded-xl border border-slate-200/80 shadow-sm p-5`}>
+        <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-semibold text-slate-800 flex items-center gap-2"><ClipboardCheck className="w-4 h-4 text-orange-500" /> Pending Approvals</h3>
             {(role === "management" || role === "admin") && data?.pending_approvals.length > 0 && (
@@ -372,7 +380,6 @@ export default function Dashboard() {
         </div>
 
         {/* Recent HR Activity */}
-        {role !== "hr" && (
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
           <h3 className="font-display font-semibold text-slate-800 mb-4 flex items-center gap-2"><Activity /> Recent HR Activity</h3>
           {!data ? (
@@ -397,7 +404,6 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        )}
       </div>
     </div>
   );

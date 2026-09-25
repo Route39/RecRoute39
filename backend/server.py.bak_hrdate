@@ -235,7 +235,6 @@ class UpdateBody(BaseModel):
 
 class StatusBody(BaseModel):
     status: str
-    interview_type: Optional[str] = None
 
 class SendApprovalBody(BaseModel):
     recommended_salary: Optional[float] = None
@@ -501,7 +500,7 @@ def compute_status_at(d: dict, status: str):
 
 def candidate_summary(c: dict) -> dict:
     return {
-        "id": c["id"], "onboarding_sent": c.get("onboarding_sent", False), "interview_type": c.get("interview_type"), "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
+        "id": c["id"], "onboarding_sent": c.get("onboarding_sent", False), "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
         "city": c.get("city", ""), "source": c.get("source", ""), "expected_salary": c.get("expected_salary"),
         "current_salary": c.get("current_salary"), "status": c["status"],
         "assigned_hr_name": c.get("assigned_hr_name"), "updated_at": c.get("updated_at"),
@@ -708,7 +707,7 @@ async def change_status(cid: str, body: StatusBody, user: dict = Depends(require
         if jdoc and (jdoc.get("vacancies") or 0) <= 0:
             raise HTTPException(status_code=400, detail="Cannot mark as Joined. No vacancies left for this job.")
     entry = {"status": body.status, "by_id": user["id"], "by_name": user["name"], "at": ts}
-    await db.candidates.update_one({"id": cid}, {"$set": {"status": body.status, "interview_type": body.interview_type if body.status == "Interview" else None, "updated_at": ts}, "$push": {"status_history": entry}})
+    await db.candidates.update_one({"id": cid}, {"$set": {"status": body.status, "updated_at": ts}, "$push": {"status_history": entry}})
     # FIX: keep the linked job's open vacancy count in sync with "Joined" status.
     # Moving INTO "Joined" -> one less open vacancy (never below 0).
     # Moving OUT of "Joined" -> give that vacancy back.
@@ -889,7 +888,7 @@ async def hr_monitoring(user: dict = Depends(require_roles("admin", "management"
         selected = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Selected"})
         joined = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Joined"})
         rejected = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Rejected"})
-        result.append({"hr": {"id": hid, "name": hr["name"], "email": hr["email"], "avatar": hr.get("avatar"), "created_at": hr.get("created_at")},
+        result.append({"hr": {"id": hid, "name": hr["name"], "email": hr["email"], "avatar": hr.get("avatar")},
                        "added": added, "contacted": contacted, "interviewed": interviewed, "shortlisted": shortlisted,
                        "sent_for_approval": sent, "selected": selected, "joined": joined, "rejected": rejected})
     recent = await db.activities.find({}, {"_id": 0}).sort("created_at", -1).to_list(25)

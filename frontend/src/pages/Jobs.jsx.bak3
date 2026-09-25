@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Briefcase, MapPin, Users, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Plus, Briefcase, MapPin, Users, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 const EMPTY = { designation: "", branch: "", vacancies: 1, salary_min: "", salary_max: "", experience: "", assigned_hr_id: "", status: "Active" };
@@ -25,8 +25,6 @@ export default function Jobs() {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [jobToDelete, setJobToDelete] = useState(null);
 
   const load = () => api.get("/jobs").then((r) => setJobs(r.data));
   useEffect(() => { load(); api.get("/users").then((r) => setHrs(r.data.filter((u) => u.role === "hr"))); }, []);
@@ -45,7 +43,7 @@ export default function Jobs() {
     setBusy(true);
     try {
       const payload = {
-        ...form, vacancies: form.vacancies === "" || Number.isNaN(Number(form.vacancies)) ? 1 : Number(form.vacancies),
+        ...form, vacancies: Number(form.vacancies) || 1,
         salary_min: form.salary_min ? Number(form.salary_min) : null,
         salary_max: form.salary_max ? Number(form.salary_max) : null,
         assigned_hr_id: form.assigned_hr_id || null,
@@ -55,17 +53,6 @@ export default function Jobs() {
       toast.success(editingId ? "Job updated successfully" : "Job created successfully");
       setOpen(false); setForm(EMPTY); setEditingId(null); load();
     } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
-  };
-
-  const confirmDeleteJob = async () => {
-    const j = jobToDelete;
-    if (!j) return;
-    setDeletingId(j.id);
-    try {
-      await api.delete(`/jobs/${j.id}`);
-      toast.success("Job deleted successfully");
-      load();
-    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); } finally { setDeletingId(null); setJobToDelete(null); }
   };
 
   return (
@@ -101,12 +88,7 @@ export default function Jobs() {
                 <div className="flex justify-between"><span className="text-slate-400">Experience</span><span className="font-medium text-slate-700">{j.experience || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">Assigned HR</span><span className="font-medium text-slate-700">{j.assigned_hr_name || "—"}</span></div>
               </div>
-              {canManage && (
-                <div className="relative mt-3 flex gap-2">
-                  <Button data-testid={`edit-job-button-${j.id}`} variant="outline" size="sm" onClick={() => openEdit(j)} className="flex-1 gap-1.5"><Pencil className="w-3.5 h-3.5" /> Edit</Button>
-                  <Button data-testid={`delete-job-button-${j.id}`} variant="outline" size="sm" onClick={() => setJobToDelete(j)} disabled={deletingId === j.id} className="gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">{deletingId === j.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}</Button>
-                </div>
-              )}
+              {canManage && <Button data-testid={`edit-job-button-${j.id}`} variant="outline" size="sm" onClick={() => openEdit(j)} className="relative mt-3 w-full gap-1.5"><Pencil className="w-3.5 h-3.5" /> Edit</Button>}
             </div>
           ))}
         </div>
@@ -118,13 +100,13 @@ export default function Jobs() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5 sm:col-span-2"><Label>Designation *</Label><Input data-testid="job-designation-input" value={form.designation} onChange={(e) => set("designation", e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Branch</Label><Select value={form.branch} onValueChange={(v) => set("branch", v)}><SelectTrigger data-testid="job-branch-select"><SelectValue placeholder="Select branch" /></SelectTrigger><SelectContent>{BRANCHES.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Vacancies</Label><Input data-testid="job-vacancies-input" type="number" disabled={form.status === "Closed"} value={form.vacancies} onChange={(e) => set("vacancies", e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Salary Min (₹)</Label><Input data-testid="job-salary-min-input" type="number" className="no-spinner" onWheel={(e) => e.target.blur()} value={form.salary_min} onChange={(e) => set("salary_min", e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Salary Max (₹)</Label><Input data-testid="job-salary-max-input" type="number" className="no-spinner" onWheel={(e) => e.target.blur()} value={form.salary_max} onChange={(e) => set("salary_max", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Vacancies</Label><Input data-testid="job-vacancies-input" type="number" value={form.vacancies} onChange={(e) => set("vacancies", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Salary Min (₹)</Label><Input data-testid="job-salary-min-input" type="number" value={form.salary_min} onChange={(e) => set("salary_min", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Salary Max (₹)</Label><Input data-testid="job-salary-max-input" type="number" value={form.salary_max} onChange={(e) => set("salary_max", e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Experience</Label><Input data-testid="job-experience-input" value={form.experience} onChange={(e) => set("experience", e.target.value)} placeholder="e.g. 2-4 years" /></div>
             <div className="space-y-1.5">
               <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v, vacancies: v === "Closed" ? 0 : f.vacancies }))}>
+              <Select value={form.status} onValueChange={(v) => set("status", v)}>
                 <SelectTrigger data-testid="job-status-select"><SelectValue /></SelectTrigger>
                 <SelectContent>{JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
@@ -140,23 +122,6 @@ export default function Jobs() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button data-testid="submit-job-button" onClick={submit} disabled={busy} className="bg-blue-600 hover:bg-blue-700">{busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingId ? "Save" : "Create"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!jobToDelete} onOpenChange={(v) => !v && setJobToDelete(null)}>
-        <DialogContent className="bg-white max-w-sm" data-testid="delete-job-modal">
-          <DialogHeader>
-            <DialogTitle className="font-display">Delete job?</DialogTitle>
-            <DialogDescription>
-              Delete <span className="font-semibold text-slate-700">"{jobToDelete?.designation}"</span>? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setJobToDelete(null)}>Cancel</Button>
-            <Button data-testid="confirm-delete-job-button" onClick={confirmDeleteJob} disabled={deletingId === jobToDelete?.id} className="bg-rose-600 hover:bg-rose-700">
-              {deletingId === jobToDelete?.id && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Delete
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

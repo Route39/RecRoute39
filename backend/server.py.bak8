@@ -195,12 +195,10 @@ class CreateUserBody(BaseModel):
     email: str
     password: str
     role: str  # hr | management | admin
-    phone: Optional[str] = ""
 
 class UpdateUserBody(BaseModel):
     name: str
     email: str
-    phone: Optional[str] = ""
     password: Optional[str] = None
 
 class ForgotBody(BaseModel):
@@ -235,7 +233,6 @@ class UpdateBody(BaseModel):
 
 class StatusBody(BaseModel):
     status: str
-    interview_type: Optional[str] = None
 
 class SendApprovalBody(BaseModel):
     recommended_salary: Optional[float] = None
@@ -383,7 +380,6 @@ async def create_user(body: CreateUserBody, user: dict = Depends(require_roles("
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="A user with this email already exists")
     doc = {"id": str(uuid.uuid4()), "email": email, "name": body.name, "role": body.role,
-           "phone": (body.phone or "").strip(),
            "password_hash": hash_password(body.password), "token_version": 0, "avatar": None, "created_at": now_iso()}
     await db.users.insert_one(doc)
     return public_user(doc)
@@ -405,7 +401,6 @@ async def update_user(
 
     name = body.name.strip()
     email = body.email.strip().lower()
-    phone = (body.phone or "").strip()
 
     if not name or not email:
         raise HTTPException(status_code=400, detail="Name and email are required")
@@ -424,7 +419,6 @@ async def update_user(
     updates = {
         "name": name,
         "email": email,
-        "phone": phone,
     }
 
     if body.password and body.password.strip():
@@ -501,7 +495,7 @@ def compute_status_at(d: dict, status: str):
 
 def candidate_summary(c: dict) -> dict:
     return {
-        "id": c["id"], "onboarding_sent": c.get("onboarding_sent", False), "interview_type": c.get("interview_type"), "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
+        "id": c["id"], "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
         "city": c.get("city", ""), "source": c.get("source", ""), "expected_salary": c.get("expected_salary"),
         "current_salary": c.get("current_salary"), "status": c["status"],
         "assigned_hr_name": c.get("assigned_hr_name"), "updated_at": c.get("updated_at"),
@@ -708,7 +702,7 @@ async def change_status(cid: str, body: StatusBody, user: dict = Depends(require
         if jdoc and (jdoc.get("vacancies") or 0) <= 0:
             raise HTTPException(status_code=400, detail="Cannot mark as Joined. No vacancies left for this job.")
     entry = {"status": body.status, "by_id": user["id"], "by_name": user["name"], "at": ts}
-    await db.candidates.update_one({"id": cid}, {"$set": {"status": body.status, "interview_type": body.interview_type if body.status == "Interview" else None, "updated_at": ts}, "$push": {"status_history": entry}})
+    await db.candidates.update_one({"id": cid}, {"$set": {"status": body.status, "updated_at": ts}, "$push": {"status_history": entry}})
     # FIX: keep the linked job's open vacancy count in sync with "Joined" status.
     # Moving INTO "Joined" -> one less open vacancy (never below 0).
     # Moving OUT of "Joined" -> give that vacancy back.
@@ -889,7 +883,7 @@ async def hr_monitoring(user: dict = Depends(require_roles("admin", "management"
         selected = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Selected"})
         joined = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Joined"})
         rejected = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Rejected"})
-        result.append({"hr": {"id": hid, "name": hr["name"], "email": hr["email"], "avatar": hr.get("avatar"), "created_at": hr.get("created_at")},
+        result.append({"hr": {"id": hid, "name": hr["name"], "email": hr["email"], "avatar": hr.get("avatar")},
                        "added": added, "contacted": contacted, "interviewed": interviewed, "shortlisted": shortlisted,
                        "sent_for_approval": sent, "selected": selected, "joined": joined, "rejected": rejected})
     recent = await db.activities.find({}, {"_id": 0}).sort("created_at", -1).to_list(25)
@@ -977,7 +971,6 @@ class OnboardingSubmit(BaseModel):
     whatsapp: str
     email: Optional[str] = ""
     emergency_contact: str
-    emergency_relationship: Optional[str] = ""
     designation: str
     salary: str
     proofs: dict = {}
@@ -1007,7 +1000,6 @@ async def create_onboarding_link(cid: str, user: dict = Depends(require_roles("h
         await db.onboarding.insert_one({"id": str(uuid.uuid4()), "token": token, "candidate_id": cid,
             "candidate_name": c["name"], "status": "sent", "created_by": user["id"],
             "created_at": now_iso(), "answers": None, "submitted_at": None})
-    await db.candidates.update_one({"id": cid}, {"$set": {"onboarding_sent": True}})
     link = f"{FRONTEND_URL.rstrip('/')}/onboard/{token}"
     msg = f"Hi {c['name']}, welcome to Route39! Please complete your joining details here: {link}"
     await log_activity(user, "Onboarding link sent", cid, c["name"], "")
@@ -1046,29 +1038,6 @@ async def public_onboarding_submit(token: str, body: OnboardingSubmit):
 @api.get("/onboarding")
 async def list_onboarding(user: dict = Depends(require_roles("hr", "admin", "management"))):
     return await db.onboarding.find({}, {"_id": 0, "token": 0}).sort("created_at", -1).to_list(500)
-
-@api.post("/onboarding/{oid}/upload")
-async def hr_onboarding_upload(oid: str, proof: str, file: UploadFile = File(...), user: dict = Depends(require_roles("hr", "admin"))):
-    """Lets HR/Admin upload a proof photo on the candidate's behalf — e.g. when the
-    candidate marked a document "Not available" and later shared it outside the app
-    (WhatsApp, email, in person) instead of through the onboarding form."""
-    ob = await db.onboarding.find_one({"id": oid})
-    if not ob:
-        raise HTTPException(status_code=404, detail="Onboarding record not found")
-    if ob.get("status") != "submitted":
-        raise HTTPException(status_code=400, detail="Candidate hasn't submitted onboarding details yet")
-    if proof not in PROOF_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid proof type")
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only images are allowed")
-    data = await file.read()
-    if len(data) > MAX_UPLOAD:
-        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
-    fid = await onboard_fs.upload_from_stream(file.filename or f"{proof}.jpg", data,
-        metadata={"candidate_id": ob["candidate_id"], "proof": proof, "content_type": file.content_type, "uploaded_by": user["id"]})
-    await db.onboarding.update_one({"id": oid}, {"$set": {f"answers.proofs.{proof}": {"file_id": str(fid)}}})
-    await log_activity(user, "Onboarding proof uploaded", ob["candidate_id"], ob.get("candidate_name"), proof.title())
-    return {"file_id": str(fid)}
 
 @api.get("/onboarding/files/{fid}")
 async def get_onboarding_file(fid: str, user: dict = Depends(require_roles("hr", "admin", "management"))):

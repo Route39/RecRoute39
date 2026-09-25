@@ -1,0 +1,38 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api, formatDateTime } from "@/lib/api";
+import { OnboardingView } from "@/components/Onboarding";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+export default function OnboardingPage() {
+  const [rows, setRows] = useState(null);
+  const [sel, setSel] = useState(null);
+  useEffect(() => { api.get("/onboarding").then((r) => setRows(r.data)).catch(() => setRows([])); }, []);
+  return (
+    <div className="space-y-5">
+      <div><h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">Onboarding</h1><p className="text-sm text-slate-500 mt-1">Joining details submitted by candidates.</p></div>
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs uppercase tracking-wide text-slate-400 border-b"><tr><th className="p-3">Candidate</th><th className="p-3">Status</th><th className="p-3">Link sent</th><th className="p-3">Submitted</th></tr></thead>
+          <tbody>
+            {!rows ? <tr><td className="p-4 text-slate-400" colSpan={4}>Loading...</td></tr>
+              : rows.length === 0 ? <tr><td className="p-4 text-slate-400" colSpan={4}>No onboarding links sent yet.</td></tr>
+              : rows.map((o) => (
+                <tr key={o.id} className="border-b last:border-0 hover:bg-slate-50">
+                  <td className="p-3"><button onClick={() => setSel(o)} className="font-medium text-blue-600 hover:underline">{o.candidate_name}</button></td>
+                  <td className="p-3">{o.status === "submitted" ? <span className="text-emerald-600 font-medium">Submitted</span> : <span className="text-amber-600 font-medium">Pending</span>}</td>
+                  <td className="p-3 text-slate-500">{formatDateTime(o.created_at)}</td>
+                  <td className="p-3 text-slate-500">{o.submitted_at ? formatDateTime(o.submitted_at) : "—"}</td>
+                </tr>))}
+          </tbody>
+        </table>
+      </div>
+      <Dialog open={!!sel} onOpenChange={(v) => !v && setSel(null)}>
+        <DialogContent className="bg-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display">{sel?.candidate_name}</DialogTitle></DialogHeader>
+          {sel && <><OnboardingView ob={sel} /><Link to={`/candidates/${sel.candidate_id}`} className="text-sm text-blue-600 underline">Open candidate profile →</Link></>}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

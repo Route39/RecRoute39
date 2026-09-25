@@ -1,0 +1,153 @@
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
+import { api, formatApiError } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Loader2, Camera, Image as ImageIcon, CheckCircle2, XCircle } from "lucide-react";
+
+const FIELDS = [
+  { key: "name", label: "Your full name", type: "text", required: true },
+  { key: "contact", label: "Contact number", type: "tel", required: true },
+  { key: "whatsapp", label: "WhatsApp number", type: "tel", required: true },
+  { key: "email", label: "Email address (optional)", type: "email", required: false },
+  { key: "emergency_contact", label: "Emergency contact (name & number)", type: "text", required: true },
+  { key: "designation", label: "Job title / Designation", type: "text", required: true },
+  { key: "salary", label: "Salary (₹ per month)", type: "numeric", required: true },
+];
+const PROOFS = [
+  { key: "aadhaar", label: "Aadhaar card" },
+  { key: "pan", label: "PAN card" },
+  { key: "passbook", label: "Bank passbook" },
+  { key: "licence", label: "Driving licence" },
+];
+
+export default function OnboardForm() {
+  const { token } = useParams();
+  const [state, setState] = useState("loading");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [form, setForm] = useState({ name: "", contact: "", whatsapp: "", email: "", emergency_contact: "", designation: "", salary: "" });
+  const [proofs, setProofs] = useState({});
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const galleryRef = useRef(null);
+  const cameraRef = useRef(null);
+
+  useEffect(() => {
+    api.get(`/public/onboarding/${token}`)
+      .then((r) => { setForm((f) => ({ ...f, ...r.data, whatsapp: r.data.contact || "" })); setState("form"); })
+      .catch((e) => { setErrorMsg(formatApiError(e.response?.data?.detail)); setState("error"); });
+  }, [token]);
+
+  const total = FIELDS.length + PROOFS.length + 1;
+  const isField = step < FIELDS.length;
+  const proofIdx = step - FIELDS.length;
+  const isProof = !isField && proofIdx < PROOFS.length;
+
+  const validate = () => {
+    if (isField) {
+      const f = FIELDS[step]; const v = (form[f.key] || "").trim();
+      if (f.required && !v) return "This field is required";
+      if (f.type === "tel" && v.length !== 10) return "Enter a valid 10-digit number";
+      if (f.type === "email" && v && !/^\S+@\S+\.\S+$/.test(v)) return "Enter a valid email";
+    }
+    if (isProof) {
+      const p = proofs[PROOFS[proofIdx].key] || {};
+      if (!p.file_id && !(p.reason || "").trim()) return "Upload a photo, or tell us why it is not available";
+    }
+    return "";
+  };
+  const next = () => { const e = validate(); setErr(e); if (!e) setStep((s) => s + 1); };
+  const back = () => { setErr(""); setStep((s) => Math.max(0, s - 1)); };
+
+  const setField = (f, v) => {
+    if (f.type === "tel") v = v.replace(/\D/g, "").slice(0, 10);
+    if (f.type === "numeric") v = v.replace(/\D/g, "");
+    setForm((x) => ({ ...x, [f.key]: v }));
+  };
+  const setProof = (key, patch) => setProofs((p) => ({ ...p, [key]: { ...(p[key] || {}), ...patch } }));
+
+  const upload = async (file) => {
+    if (!file) return;
+    const key = PROOFS[proofIdx].key;
+    if (file.size > 5 * 1024 * 1024) { setErr("Image must be under 5 MB"); return; }
+    setBusy(true); setErr("");
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const { data } = await api.post(`/public/onboarding/${token}/upload`, fd, { params: { proof: key } });
+      setProof(key, { file_id: data.file_id, preview: URL.createObjectURL(file), na: false, reason: "" });
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
+  };
+
+  const submit = async () => {
+    setBusy(true); setErr("");
+    try {
+      const clean = {};
+      PROOFS.forEach(({ key }) => { const p = proofs[key] || {}; clean[key] = { file_id: p.file_id || null, reason: p.file_id ? "" : (p.reason || "") }; });
+      await api.post(`/public/onboarding/${token}/submit`, { ...form, proofs: clean });
+      setState("done");
+    } catch (e) { setErr(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
+  };
+
+  const shell = (children) => (
+    <div className="min-h-screen bg-slate-50 flex items-start sm:items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="mb-5"><div className="font-display text-xl font-bold text-slate-900">Route39 Joining Form</div><div className="text-sm text-slate-500">Please fill in your details</div></div>
+        {children}
+      </div>
+    </div>
+  );
+
+  if (state === "loading") return shell(<div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>);
+  if (state === "error") return shell(<div className="text-center py-8"><XCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" /><p className="text-slate-700">{errorMsg}</p></div>);
+  if (state === "done") return shell(<div className="text-center py-8"><CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" /><p className="font-semibold text-slate-800">Thank you!</p><p className="text-sm text-slate-500 mt-1">Your details have been submitted to Route39 HR.</p></div>);
+
+  const pct = Math.round(((step + 1) / total) * 100);
+  return shell(
+    <div>
+      <div className="h-1.5 bg-slate-100 rounded-full mb-2"><div className="h-1.5 bg-blue-600 rounded-full transition-all" style={{ width: `${pct}%` }} /></div>
+      <div className="text-xs text-slate-400 mb-5">Step {step + 1} of {total}</div>
+
+      {isField && (() => { const f = FIELDS[step]; return (
+        <div className="space-y-2">
+          <label className="font-medium text-slate-800">{f.label}{f.required && " *"}</label>
+          <Input autoFocus value={form[f.key]} inputMode={f.type === "tel" || f.type === "numeric" ? "numeric" : undefined} type={f.type === "email" ? "email" : "text"} onChange={(e) => setField(f, e.target.value)} onKeyDown={(e) => e.key === "Enter" && next()} />
+        </div>); })()}
+
+      {isProof && (() => { const pr = PROOFS[proofIdx]; const p = proofs[pr.key] || {}; return (
+        <div className="space-y-3">
+          <div className="font-medium text-slate-800">{pr.label} *</div>
+          {p.preview && <img src={p.preview} alt={pr.label} className="w-full max-h-56 object-contain rounded-lg border" />}
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" variant="outline" disabled={busy} onClick={() => galleryRef.current?.click()} className="gap-1.5"><ImageIcon className="w-4 h-4" /> Gallery</Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => cameraRef.current?.click()} className="gap-1.5"><Camera className="w-4 h-4" /> Camera</Button>
+          </div>
+          <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { upload(e.target.files[0]); e.target.value = ""; }} />
+          {!p.file_id && (
+            <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={!!p.na} onChange={(e) => setProof(pr.key, { na: e.target.checked })} /> Not available</label>
+          )}
+          {!p.file_id && p.na && <Textarea rows={2} placeholder="Reason why it is not available" value={p.reason || ""} onChange={(e) => setProof(pr.key, { reason: e.target.value })} />}
+          {busy && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</div>}
+        </div>); })()}
+
+      {step === total - 1 && (
+        <div className="space-y-2 text-sm">
+          <div className="font-medium text-slate-800 mb-2">Review your details</div>
+          {FIELDS.map((f) => <div key={f.key} className="flex justify-between gap-3"><span className="text-slate-500">{f.label.replace(" (optional)", "")}</span><span className="text-slate-800 text-right">{form[f.key] || "—"}</span></div>)}
+          {PROOFS.map((pr) => { const p = proofs[pr.key] || {}; return <div key={pr.key} className="flex justify-between gap-3"><span className="text-slate-500">{pr.label}</span><span className={p.file_id ? "text-emerald-600" : "text-amber-600"}>{p.file_id ? "Uploaded" : "Not available"}</span></div>; })}
+        </div>
+      )}
+
+      {err && <p className="text-sm text-rose-600 mt-3">{err}</p>}
+
+      <div className="flex justify-between mt-6">
+        <Button type="button" variant="outline" onClick={back} disabled={step === 0 || busy}>Back</Button>
+        {step < total - 1
+          ? <Button type="button" onClick={next} disabled={busy} className="bg-blue-600 hover:bg-blue-700">Next</Button>
+          : <Button type="button" onClick={submit} disabled={busy} className="bg-blue-600 hover:bg-blue-700">{busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Submit</Button>}
+      </div>
+    </div>
+  );
+}

@@ -168,21 +168,6 @@ async def log_activity(user: dict, action: str, candidate_id: Optional[str] = No
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
-IST = timezone(timedelta(hours=5, minutes=30))
-
-def ist_date_range_to_utc(date_from, date_to):
-    """Convert 'YYYY-MM-DD' (interpreted as IST calendar day) to a UTC $gte/$lte range."""
-    rng = {}
-    if date_from:
-        y, m, d = map(int, date_from.split("-"))
-        start_ist = datetime(y, m, d, 0, 0, 0, tzinfo=IST)
-        rng["$gte"] = start_ist.astimezone(timezone.utc).isoformat()
-    if date_to:
-        y, m, d = map(int, date_to.split("-"))
-        end_ist = datetime(y, m, d, 23, 59, 59, 999999, tzinfo=IST)
-        rng["$lte"] = end_ist.astimezone(timezone.utc).isoformat()
-    return rng
-
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -195,13 +180,6 @@ class CreateUserBody(BaseModel):
     email: str
     password: str
     role: str  # hr | management | admin
-    phone: Optional[str] = ""
-
-class UpdateUserBody(BaseModel):
-    name: str
-    email: str
-    phone: Optional[str] = ""
-    password: Optional[str] = None
 
 class ForgotBody(BaseModel):
     email: str
@@ -235,7 +213,6 @@ class UpdateBody(BaseModel):
 
 class StatusBody(BaseModel):
     status: str
-    interview_type: Optional[str] = None
 
 class SendApprovalBody(BaseModel):
     recommended_salary: Optional[float] = None
@@ -366,10 +343,6 @@ async def reset_password(body: ResetBody):
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
-class HRMessageBody(BaseModel):
-    message: str
-
-
 @api.get("/users")
 async def list_users(user: dict = Depends(get_current_user)):
     users = await db.users.find({}, {"_id": 0, "password_hash": 0, "token_version": 0}).to_list(500)
@@ -383,103 +356,9 @@ async def create_user(body: CreateUserBody, user: dict = Depends(require_roles("
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="A user with this email already exists")
     doc = {"id": str(uuid.uuid4()), "email": email, "name": body.name, "role": body.role,
-           "phone": (body.phone or "").strip(),
            "password_hash": hash_password(body.password), "token_version": 0, "avatar": None, "created_at": now_iso()}
     await db.users.insert_one(doc)
     return public_user(doc)
-
-
-@api.put("/users/{uid}")
-async def update_user(
-    uid: str,
-    body: UpdateUserBody,
-    user: dict = Depends(require_roles("admin")),
-):
-    target = await db.users.find_one({"id": uid})
-
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if target.get("role") != "hr":
-        raise HTTPException(status_code=400, detail="Only HR users can be edited here")
-
-    name = body.name.strip()
-    email = body.email.strip().lower()
-    phone = (body.phone or "").strip()
-
-    if not name or not email:
-        raise HTTPException(status_code=400, detail="Name and email are required")
-
-    duplicate = await db.users.find_one({
-        "email": email,
-        "id": {"$ne": uid},
-    })
-
-    if duplicate:
-        raise HTTPException(
-            status_code=409,
-            detail="A user with this email already exists",
-        )
-
-    updates = {
-        "name": name,
-        "email": email,
-        "phone": phone,
-    }
-
-    if body.password and body.password.strip():
-        updates["password_hash"] = hash_password(body.password)
-        updates["token_version"] = target.get("token_version", 0) + 1
-
-    await db.users.update_one(
-        {"id": uid},
-        {"$set": updates},
-    )
-
-    await log_activity(
-        user,
-        "HR Updated",
-        details=f"HR account updated: {name}",
-    )
-
-    updated = dict(target)
-    updated.update(updates)
-
-    return public_user(updated)
-
-
-@api.delete("/users/{uid}")
-async def delete_user(
-    uid: str,
-    user: dict = Depends(require_roles("admin")),
-):
-    target = await db.users.find_one({"id": uid})
-
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if target.get("role") != "hr":
-        raise HTTPException(status_code=400, detail="Only HR users can be deleted here")
-
-    assigned_count = await db.candidates.count_documents({
-        "assigned_hr_id": uid
-    })
-
-    if assigned_count > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot delete this HR. {assigned_count} candidate(s) are currently assigned to this HR.",
-        )
-
-    await db.users.delete_one({"id": uid})
-
-    await log_activity(
-        user,
-        "HR Deleted",
-        details=f"HR account deleted: {target.get('name', '')}",
-    )
-
-    return {"message": "HR deleted successfully"}
 
 # ---------------------------------------------------------------------------
 # Candidate serialization
@@ -501,7 +380,7 @@ def compute_status_at(d: dict, status: str):
 
 def candidate_summary(c: dict) -> dict:
     return {
-        "id": c["id"], "onboarding_sent": c.get("onboarding_sent", False), "interview_type": c.get("interview_type"), "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
+        "id": c["id"], "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
         "city": c.get("city", ""), "source": c.get("source", ""), "expected_salary": c.get("expected_salary"),
         "current_salary": c.get("current_salary"), "status": c["status"],
         "assigned_hr_name": c.get("assigned_hr_name"), "updated_at": c.get("updated_at"),
@@ -523,7 +402,6 @@ async def check_duplicate(phone: str = Query(...), user: dict = Depends(get_curr
 async def list_candidates(
     search: Optional[str] = None, designation: Optional[str] = None, city: Optional[str] = None,
     hr: Optional[str] = None, source: Optional[str] = None, status: Optional[str] = None,
-    date_from: Optional[str] = None, date_to: Optional[str] = None,
     user: dict = Depends(get_current_user),
 ):
     q = {}
@@ -544,8 +422,6 @@ async def list_candidates(
             q["approval.decision"] = "Send Back"
         else:
             q["status"] = status
-    if date_from or date_to:
-        q["updated_at"] = ist_date_range_to_utc(date_from, date_to)
     docs = await db.candidates.find(q).sort("updated_at", -1).to_list(1000)
     result = []
     for d in docs:
@@ -681,23 +557,15 @@ async def change_status(cid: str, body: StatusBody, user: dict = Depends(require
     ts = now_iso()
     old_status = c.get("status")
     job_id = c.get("job_id")
-    if body.status == "Joined" and old_status != "Joined":
+    if not job_id:
         import re
-        br = (c.get("branch") or "").strip()
-        names = [n.strip() for n in [c.get("relevant_job"), c.get("designation")] if n and n.strip()]
-        job = None
-        for n in names:
-            base = {"designation": {"$regex": rf"^\s*{re.escape(n)}\s*$", "$options": "i"}}
-            tries = []
+        rj = (c.get("relevant_job") or c.get("designation") or "").strip()
+        if rj:
+            q = {"designation": {"$regex": f"^{re.escape(rj)}$", "$options": "i"}}
+            br = (c.get("branch") or "").strip()
             if br:
-                bq = {"$regex": rf"^\s*{re.escape(br)}\s*$", "$options": "i"}
-                tries.append({**base, "$or": [{"branch": bq}, {"city": bq}]})
-            tries.append(base)
-            for q in tries:
-                job = await db.jobs.find_one(q, sort=[("created_at", -1)])
-                if job: break
-            if job: break
-        if True:
+                q["$or"] = [{"branch": {"$regex": f"^{re.escape(br)}$", "$options": "i"}}, {"branch": {"$in": [None, ""]}}]
+            job = await db.jobs.find_one(q, sort=[("created_at", -1)])
             if job:
                 job_id = job["id"]
                 await db.candidates.update_one({"id": cid}, {"$set": {"job_id": job_id}})
@@ -705,10 +573,8 @@ async def change_status(cid: str, body: StatusBody, user: dict = Depends(require
         jdoc = await db.jobs.find_one({"id": job_id})
         if jdoc and jdoc.get("status", "Active") != "Active":
             raise HTTPException(status_code=400, detail=f"Cannot mark as Joined. Job is {jdoc.get('status')}, only Active jobs accept joins.")
-        if jdoc and (jdoc.get("vacancies") or 0) <= 0:
-            raise HTTPException(status_code=400, detail="Cannot mark as Joined. No vacancies left for this job.")
     entry = {"status": body.status, "by_id": user["id"], "by_name": user["name"], "at": ts}
-    await db.candidates.update_one({"id": cid}, {"$set": {"status": body.status, "interview_type": body.interview_type if body.status == "Interview" else None, "updated_at": ts}, "$push": {"status_history": entry}})
+    await db.candidates.update_one({"id": cid}, {"$set": {"status": body.status, "updated_at": ts}, "$push": {"status_history": entry}})
     # FIX: keep the linked job's open vacancy count in sync with "Joined" status.
     # Moving INTO "Joined" -> one less open vacancy (never below 0).
     # Moving OUT of "Joined" -> give that vacancy back.
@@ -770,88 +636,6 @@ async def approvals(user: dict = Depends(get_current_user)):
     return result
 
 # ---------------------------------------------------------------------------
-# HR -> Admin Notifications
-# ---------------------------------------------------------------------------
-@api.get("/notifications")
-async def get_notifications(user: dict = Depends(require_roles("admin"))):
-    docs = await db.notifications.find(
-        {"recipient_role": "admin"},
-        {"_id": 0},
-    ).sort("created_at", -1).to_list(50)
-
-    uid = user["id"]
-    result = []
-
-    for doc in docs:
-        item = dict(doc)
-        item["read"] = uid in item.get("read_by", [])
-        result.append(item)
-
-    unread = sum(1 for item in result if not item["read"])
-
-    return {
-        "notifications": result,
-        "unread": unread,
-    }
-
-
-@api.post("/notifications/hr-message")
-async def send_hr_message(
-    body: HRMessageBody,
-    user: dict = Depends(require_roles("hr", "admin")),
-):
-    message = body.message.strip()
-
-    if not message:
-        raise HTTPException(status_code=400, detail="Message is required")
-
-    if len(message) > 1000:
-        raise HTTPException(status_code=400, detail="Message cannot exceed 1000 characters")
-
-    doc = {
-        "id": str(uuid.uuid4()),
-        "type": "hr_message",
-        "sender_id": user["id"],
-        "sender_name": user["name"],
-        "sender_role": "hr",
-        "recipient_role": "admin",
-        "message": message,
-        "created_at": now_iso(),
-        "read_by": [],
-    }
-
-    await db.notifications.insert_one(doc)
-
-    return {
-        "message": "Notification sent to Admin",
-        "notification": {k: v for k, v in doc.items() if k != "_id"},
-    }
-
-
-@api.put("/notifications/{nid}/read")
-async def mark_notification_read(
-    nid: str,
-    user: dict = Depends(require_roles("admin")),
-):
-    result = await db.notifications.update_one(
-        {
-            "id": nid,
-            "recipient_role": "admin",
-        },
-        {
-            "$addToSet": {
-                "read_by": user["id"]
-            }
-        },
-    )
-
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Notification not found")
-
-    return {"message": "Notification marked as read"}
-
-
-# ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
 @api.get("/dashboard/stats")
@@ -889,7 +673,7 @@ async def hr_monitoring(user: dict = Depends(require_roles("admin", "management"
         selected = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Selected"})
         joined = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Joined"})
         rejected = await db.candidates.count_documents({"assigned_hr_id": hid, "status": "Rejected"})
-        result.append({"hr": {"id": hid, "name": hr["name"], "email": hr["email"], "avatar": hr.get("avatar"), "created_at": hr.get("created_at")},
+        result.append({"hr": {"id": hid, "name": hr["name"], "email": hr["email"], "avatar": hr.get("avatar")},
                        "added": added, "contacted": contacted, "interviewed": interviewed, "shortlisted": shortlisted,
                        "sent_for_approval": sent, "selected": selected, "joined": joined, "rejected": rejected})
     recent = await db.activities.find({}, {"_id": 0}).sort("created_at", -1).to_list(25)
@@ -899,11 +683,8 @@ async def hr_monitoring(user: dict = Depends(require_roles("admin", "management"
 # Activity Log
 # ---------------------------------------------------------------------------
 @api.get("/activities")
-async def get_activities(limit: int = 100, date_from: Optional[str] = None, date_to: Optional[str] = None, user: dict = Depends(get_current_user)):
-    q = {}
-    if date_from or date_to:
-        q["created_at"] = ist_date_range_to_utc(date_from, date_to)
-    return await db.activities.find(q, {"_id": 0}).sort("created_at", -1).to_list(limit)
+async def get_activities(limit: int = 100, user: dict = Depends(get_current_user)):
+    return await db.activities.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
 
 # ---------------------------------------------------------------------------
 # Jobs
@@ -939,18 +720,6 @@ async def update_job(jid: str, body: JobBody, user: dict = Depends(require_roles
     j.pop("_id", None)
     return j
 
-@api.delete("/jobs/{jid}")
-async def delete_job(jid: str, user: dict = Depends(require_roles("admin", "management"))):
-    j = await db.jobs.find_one({"id": jid})
-    if not j:
-        raise HTTPException(status_code=404, detail="Job not found")
-    linked = await db.candidates.count_documents({"job_id": jid})
-    if linked > 0:
-        raise HTTPException(status_code=400, detail=f"Cannot delete. {linked} candidate(s) are linked to this job.")
-    await db.jobs.delete_one({"id": jid})
-    await log_activity(user, "Job deleted", None, None, j["designation"])
-    return {"deleted": True}
-
 @api.get("/meta")
 async def meta(user: dict = Depends(get_current_user)):
     return {"statuses": STATUSES, "sources": SOURCES}
@@ -958,128 +727,6 @@ async def meta(user: dict = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 # App wiring
 # ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Onboarding (public link for Joined candidates)
-# ---------------------------------------------------------------------------
-import secrets as _secrets
-from urllib.parse import quote as _quote
-from fastapi import UploadFile, File
-from fastapi.responses import Response as _RawResponse
-from motor.motor_asyncio import AsyncIOMotorGridFSBucket
-
-onboard_fs = AsyncIOMotorGridFSBucket(db, bucket_name="onboarding_files")
-PROOF_TYPES = ["aadhaar", "pan", "passbook", "licence"]
-MAX_UPLOAD = 5 * 1024 * 1024
-
-class OnboardingSubmit(BaseModel):
-    name: str
-    contact: str
-    whatsapp: str
-    email: Optional[str] = ""
-    emergency_contact: str
-    emergency_relationship: Optional[str] = ""
-    designation: str
-    salary: str
-    proofs: dict = {}
-
-def _wa_number(phone):
-    d = "".join(ch for ch in (phone or "") if ch.isdigit())
-    return "91" + d if len(d) == 10 else d
-
-async def _open_onboarding(token):
-    ob = await db.onboarding.find_one({"token": token})
-    if not ob:
-        raise HTTPException(status_code=404, detail="Invalid link")
-    if ob["status"] == "submitted":
-        raise HTTPException(status_code=410, detail="This form has already been submitted")
-    return ob
-
-@api.post("/candidates/{cid}/onboarding-link")
-async def create_onboarding_link(cid: str, user: dict = Depends(require_roles("hr", "admin"))):
-    c = await db.candidates.find_one({"id": cid})
-    if not c:
-        raise HTTPException(status_code=404, detail="Candidate not found")
-    if c.get("status") != "Joined":
-        raise HTTPException(status_code=400, detail="Onboarding link is only for Joined candidates")
-    ob = await db.onboarding.find_one({"candidate_id": cid, "status": "sent"})
-    token = ob["token"] if ob else _secrets.token_urlsafe(24)
-    if not ob:
-        await db.onboarding.insert_one({"id": str(uuid.uuid4()), "token": token, "candidate_id": cid,
-            "candidate_name": c["name"], "status": "sent", "created_by": user["id"],
-            "created_at": now_iso(), "answers": None, "submitted_at": None})
-    await db.candidates.update_one({"id": cid}, {"$set": {"onboarding_sent": True}})
-    link = f"{FRONTEND_URL.rstrip('/')}/onboard/{token}"
-    msg = f"Hi {c['name']}, welcome to Route39! Please complete your joining details here: {link}"
-    await log_activity(user, "Onboarding link sent", cid, c["name"], "")
-    return {"link": link, "whatsapp_url": f"https://wa.me/{_wa_number(c.get('phone'))}?text={_quote(msg)}"}
-
-@api.get("/public/onboarding/{token}")
-async def public_onboarding(token: str):
-    ob = await _open_onboarding(token)
-    c = await db.candidates.find_one({"id": ob["candidate_id"]}) or {}
-    return {"name": c.get("name", ""), "contact": c.get("phone", ""), "email": c.get("email", ""), "designation": c.get("designation", "")}
-
-@api.post("/public/onboarding/{token}/upload")
-async def public_onboarding_upload(token: str, proof: str, file: UploadFile = File(...)):
-    ob = await _open_onboarding(token)
-    if proof not in PROOF_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid proof type")
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only images are allowed")
-    data = await file.read()
-    if len(data) > MAX_UPLOAD:
-        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
-    fid = await onboard_fs.upload_from_stream(file.filename or f"{proof}.jpg", data,
-        metadata={"candidate_id": ob["candidate_id"], "proof": proof, "content_type": file.content_type})
-    return {"file_id": str(fid)}
-
-@api.post("/public/onboarding/{token}/submit")
-async def public_onboarding_submit(token: str, body: OnboardingSubmit):
-    ob = await _open_onboarding(token)
-    for p in PROOF_TYPES:
-        v = (body.proofs or {}).get(p) or {}
-        if not v.get("file_id") and not (v.get("reason") or "").strip():
-            raise HTTPException(status_code=400, detail=f"{p.title()}: upload a photo or give a reason")
-    await db.onboarding.update_one({"id": ob["id"]}, {"$set": {"answers": body.model_dump(), "status": "submitted", "submitted_at": now_iso()}})
-    return {"ok": True}
-
-@api.get("/onboarding")
-async def list_onboarding(user: dict = Depends(require_roles("hr", "admin", "management"))):
-    return await db.onboarding.find({}, {"_id": 0, "token": 0}).sort("created_at", -1).to_list(500)
-
-@api.post("/onboarding/{oid}/upload")
-async def hr_onboarding_upload(oid: str, proof: str, file: UploadFile = File(...), user: dict = Depends(require_roles("hr", "admin"))):
-    """Lets HR/Admin upload a proof photo on the candidate's behalf — e.g. when the
-    candidate marked a document "Not available" and later shared it outside the app
-    (WhatsApp, email, in person) instead of through the onboarding form."""
-    ob = await db.onboarding.find_one({"id": oid})
-    if not ob:
-        raise HTTPException(status_code=404, detail="Onboarding record not found")
-    if ob.get("status") != "submitted":
-        raise HTTPException(status_code=400, detail="Candidate hasn't submitted onboarding details yet")
-    if proof not in PROOF_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid proof type")
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only images are allowed")
-    data = await file.read()
-    if len(data) > MAX_UPLOAD:
-        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
-    fid = await onboard_fs.upload_from_stream(file.filename or f"{proof}.jpg", data,
-        metadata={"candidate_id": ob["candidate_id"], "proof": proof, "content_type": file.content_type, "uploaded_by": user["id"]})
-    await db.onboarding.update_one({"id": oid}, {"$set": {f"answers.proofs.{proof}": {"file_id": str(fid)}}})
-    await log_activity(user, "Onboarding proof uploaded", ob["candidate_id"], ob.get("candidate_name"), proof.title())
-    return {"file_id": str(fid)}
-
-@api.get("/onboarding/files/{fid}")
-async def get_onboarding_file(fid: str, user: dict = Depends(require_roles("hr", "admin", "management"))):
-    from bson import ObjectId
-    try:
-        stream = await onboard_fs.open_download_stream(ObjectId(fid))
-        data = await stream.read()
-    except Exception:
-        raise HTTPException(status_code=404, detail="File not found")
-    return _RawResponse(content=data, media_type=(stream.metadata or {}).get("content_type", "image/jpeg"))
-
 app.include_router(api)
 
 app.add_middleware(

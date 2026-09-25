@@ -57,13 +57,16 @@ export default function Candidates() {
         </div>
         {showFilters && (
           <div className="grid grid-cols-2 md:grid-cols-7 gap-2 animate-fade">
-            <div className="md:col-span-2"><FilterSelect testid="filter-designation-select" label="Designation" value={f.designation} onChange={(v) => set("designation", v)} options={filters.designations} /></div>
+            <FilterSelect testid="filter-designation-select" label="Designation" value={f.designation} onChange={(v) => set("designation", v)} options={filters.designations} />
             <FilterSelect testid="filter-city-select" label="City" value={f.city} onChange={(v) => set("city", v)} options={filters.cities} />
             <FilterSelect testid="filter-hr-select" label="HR" value={f.hr} onChange={(v) => set("hr", v)} options={filters.hrs.map((h) => ({ value: h.id, label: h.name }))} />
             <FilterSelect testid="filter-source-select" label="Source" value={f.source} onChange={(v) => set("source", v)} options={filters.sources} />
             <FilterSelect testid="filter-status-select" label="Status" value={f.status} onChange={(v) => set("status", v)} options={filters.statuses} />
             <div className="space-y-1">
-              <input data-testid="filter-date-from" type="date" value={f.date_from} onChange={(e) => setF((x) => ({ ...x, date_from: e.target.value, date_to: e.target.value }))} className="h-9 w-full text-sm bg-slate-50 border border-slate-200 rounded-md px-2 text-slate-600" />
+              <input data-testid="filter-date-from" type="date" value={f.date_from} onChange={(e) => set("date_from", e.target.value)} className="h-9 w-full text-sm bg-slate-50 border border-slate-200 rounded-md px-2 text-slate-600" />
+            </div>
+            <div className="space-y-1">
+              <input data-testid="filter-date-to" type="date" value={f.date_to} onChange={(e) => set("date_to", e.target.value)} className="h-9 w-full text-sm bg-slate-50 border border-slate-200 rounded-md px-2 text-slate-600" />
             </div>
           </div>
         )}
@@ -114,7 +117,7 @@ export default function Candidates() {
                       <td className="px-4 py-3 hidden lg:table-cell"><SourceBadge source={c.source} /></td>
                       <td className="px-4 py-3 text-slate-700 font-medium hidden xl:table-cell tabular-nums">{formatINR(c.expected_salary)}</td>
                       <td className="px-4 py-3 text-slate-600 hidden md:table-cell">{c.assigned_hr_name}</td>
-                      <td className="px-4 py-3"><div className="flex items-center gap-1.5"><StatusBadge status={c.status} />{c.status === "Interview" && c.interview_type && <span className="text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 whitespace-nowrap">{c.interview_type}</span>}<OnboardSendButton c={c} /></div></td>
+                      <td className="px-4 py-3"><div className="flex items-center gap-1.5"><StatusBadge status={c.status} /><OnboardSendButton c={c} /></div></td>
                       <td className="px-4 py-3 text-xs text-slate-400 hidden xl:table-cell whitespace-nowrap">
                           {f.status !== "all" ? (
                             c.status_at ? (<><div>{timeAgo(c.status_at)}</div><div className="text-[10px] text-slate-300">{formatDateTime(c.status_at)}</div></>) : "—"
@@ -179,7 +182,6 @@ function FilterSelect({ testid, label, value, onChange, options }) {
 function OnboardSendButton({ c }) {
   const { role } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(!!c.onboarding_sent);
   if (c.status !== "Joined" || !(role === "hr" || role === "admin")) return null;
   const send = async (e) => {
     e.stopPropagation();
@@ -187,12 +189,11 @@ function OnboardSendButton({ c }) {
     try {
       const { data } = await api.post(`/candidates/${c.id}/onboarding-link`);
       window.open(data.whatsapp_url, "_blank");
-      setSent(true);
     } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); } finally { setBusy(false); }
   };
   return (
-    <button type="button" title={sent ? "Onboarding link already sent" : "Send onboarding form on WhatsApp"} onClick={(e) => { e.stopPropagation(); if (!sent && !busy) send(e); }}
-      className={`inline-flex items-center justify-center w-7 h-7 rounded-full border ${sent ? "border-slate-200 text-slate-300 cursor-not-allowed" : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"}`}>
+    <button type="button" title="Send onboarding form on WhatsApp" onClick={send} disabled={busy}
+      className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-emerald-200 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50">
       {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
     </button>
   );

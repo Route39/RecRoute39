@@ -4,16 +4,8 @@ import { api, formatDateTime, timeAgo, formatINR } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { StatusBadge, statusDot } from "@/components/Badges";
 import { Skeleton, EmptyState, InitialsAvatar } from "@/components/Primitives";
-import { Users, UserPlus, CalendarClock, Star, ClipboardCheck, CheckCircle2, XCircle, Briefcase, ArrowRight, Contact, Sparkles, RotateCcw, Send, MessageCircle } from "lucide-react";
+import { Users, UserPlus, CalendarClock, Star, ClipboardCheck, CheckCircle2, XCircle, Briefcase, ArrowRight, Contact, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
 
 const CARDS = [
   { key: "Total", label: "Total Candidates", icon: Users, tint: "text-slate-700 bg-slate-100", glow: "from-slate-200/50", status: null },
@@ -23,7 +15,6 @@ const CARDS = [
   { key: "Approval Pending", label: "Approval Pending", icon: ClipboardCheck, tint: "text-orange-700 bg-orange-100", glow: "from-orange-200/40", status: "Approval Pending" },
   { key: "Selected", label: "Selected", icon: CheckCircle2, tint: "text-emerald-700 bg-emerald-100", glow: "from-emerald-200/40", status: "Selected" },
   { key: "Rejected", label: "Rejected", icon: XCircle, tint: "text-rose-700 bg-rose-100", glow: "from-rose-200/40", status: "Rejected" },
-  { key: "Send Back", label: "Send Back", icon: RotateCcw, tint: "text-fuchsia-700 bg-fuchsia-100", glow: "from-fuchsia-200/40", status: "Send Back" },
   { key: "Joined", label: "Joined", icon: Briefcase, tint: "text-green-800 bg-green-100", glow: "from-green-200/40", status: "Joined" },
 ];
 
@@ -32,85 +23,12 @@ const FUNNEL = [
   { key: "Shortlisted", icon: Star }, { key: "Approval Pending", icon: ClipboardCheck }, { key: "Selected", icon: CheckCircle2 }, { key: "Joined", icon: Briefcase },
 ];
 
-const HR_ADMIN_MESSAGES = [
-  "Multiple candidates are awaiting approval. Please review them at the earliest.",
-  "Please check the pending approval candidates and update their status.",
-  "There are candidates waiting for management approval. Kindly review them.",
-  "Urgent: Multiple candidates are awaiting approval. Please review them.",
-];
-
 export default function Dashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [adminNotifications, setAdminNotifications] = useState([]);
-  const [hrMessage, setHrMessage] = useState(
-    "Multiple candidates are awaiting approval. Please review them at the earliest."
-  );
-  const [selectedHRMessage, setSelectedHRMessage] = useState("pending-review");
-  const [sendingHRMessage, setSendingHRMessage] = useState(false);
 
-  useEffect(() => {
-    api.get("/dashboard/stats").then((r) => setData(r.data));
-
-    if (role === "admin") {
-      api.get("/notifications")
-        .then((r) => setAdminNotifications(r.data.notifications || []))
-        .catch(() => {});
-    }
-  }, [role]);
-
-  const markAdminNotificationRead = async (notification) => {
-    if (notification.read) return;
-
-    try {
-      await api.put(`/notifications/${notification.id}/read`);
-
-      setAdminNotifications((items) =>
-        items.map((item) =>
-          item.id === notification.id ? { ...item, read: true } : item
-        )
-      );
-    } catch (_) {}
-  };
-
-  const selectHRMessage = (value) => {
-    setSelectedHRMessage(value);
-
-    if (value === "custom") {
-      setHrMessage("");
-      return;
-    }
-
-    const index = Number(value);
-    if (!Number.isNaN(index) && HR_ADMIN_MESSAGES[index]) {
-      setHrMessage(HR_ADMIN_MESSAGES[index]);
-    }
-  };
-
-  const sendHRMessage = async () => {
-    const message = hrMessage.trim();
-
-    if (!message) {
-      toast.error("Please enter a message");
-      return;
-    }
-
-    try {
-      setSendingHRMessage(true);
-      await api.post("/notifications/hr-message", { message });
-      toast.success("Message sent to Admin");
-      setHrMessage(
-        "Multiple candidates are awaiting approval. Please review them at the earliest."
-      );
-    } catch (err) {
-      toast.error(
-        err?.response?.data?.detail || "Failed to send message"
-      );
-    } finally {
-      setSendingHRMessage(false);
-    }
-  };
+  useEffect(() => { api.get("/dashboard/stats").then((r) => setData(r.data)); }, []);
 
   const value = (c) => (c.key === "Total" ? data.total : data.counts[c.status] ?? 0);
   const goto = (status) => navigate(status ? `/candidates?status=${encodeURIComponent(status)}` : "/candidates");
@@ -126,7 +44,7 @@ export default function Dashboard() {
       {/* KPI cards */}
       {!data ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-[112px] rounded-xl" />)}
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-[112px] rounded-xl" />)}
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 stagger">
@@ -155,8 +73,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Recruitment funnel — commented out per request */}
-      {false && <div className="relative overflow-hidden bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
+      {/* Recruitment funnel */}
+      <div className="relative overflow-hidden bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
         <div className="absolute inset-0 bg-mesh opacity-70" aria-hidden />
         <div className="relative">
           <div className="flex items-center gap-2 mb-5">
@@ -187,160 +105,11 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-      </div>}
-
-      {role === "hr" && data?.pending_approvals?.length > 0 && (
-        <div className="bg-white rounded-xl border border-blue-200 shadow-sm p-5">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <Send className="w-5 h-5" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <h3 className="font-display font-semibold text-slate-800">
-                Notify Admin
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                You have {data.pending_approvals.length} candidate(s) pending approval.
-                Send a message to Admin for review.
-              </p>
-
-              <div className="mt-3 space-y-2">
-                <Select
-                  value={selectedHRMessage}
-                  onValueChange={selectHRMessage}
-                >
-                  <SelectTrigger
-                    data-testid="hr-admin-message-dropdown"
-                    className="w-full bg-white border-slate-200"
-                  >
-                    <SelectValue placeholder="Select a built-in message" />
-                  </SelectTrigger>
-
-                  <SelectContent className="bg-white">
-                    {HR_ADMIN_MESSAGES.map((message, index) => (
-                      <SelectItem
-                        key={index}
-                        value={String(index)}
-                        className="max-w-[700px]"
-                      >
-                        {message}
-                      </SelectItem>
-                    ))}
-
-                    <SelectItem value="custom">
-                      ✏️ Write a custom message
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <textarea
-                    data-testid="hr-admin-message-input"
-                    value={hrMessage}
-                    onChange={(e) => {
-                      setHrMessage(e.target.value);
-                      setSelectedHRMessage("custom");
-                    }}
-                    maxLength={1000}
-                    rows={2}
-                    placeholder="Type a message for Admin..."
-                    className="flex-1 min-h-[72px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none resize-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                  />
-
-                  <Button
-                    data-testid="send-hr-admin-message"
-                    onClick={sendHRMessage}
-                    disabled={sendingHRMessage || !hrMessage.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 self-end sm:self-stretch px-5"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    {sendingHRMessage ? "Sending..." : "Send"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {role === "admin" && adminNotifications.length > 0 && (
-        <div className="bg-white rounded-xl border border-blue-200 shadow-sm p-5">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <MessageCircle className="w-5 h-5" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-display font-semibold text-slate-800">
-                    HR Messages
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Messages from HR regarding pending approvals.
-                  </p>
-                </div>
-
-                {adminNotifications.some((n) => !n.read) && (
-                  <span className="shrink-0 rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold text-red-600">
-                    {adminNotifications.filter((n) => !n.read).length} Unread
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-3 space-y-2">
-                {adminNotifications.slice(0, 5).map((n) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    data-testid={`dashboard-hr-notification-${n.id}`}
-                    onClick={() => markAdminNotificationRead(n)}
-                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                      n.read
-                        ? "border-slate-100 bg-slate-50"
-                        : "border-blue-100 bg-blue-50/60 hover:bg-blue-50"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <span
-                        className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
-                          n.read ? "bg-slate-300" : "bg-red-500"
-                        }`}
-                      />
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-slate-800">
-                            {n.sender_name}
-                          </span>
-                          <span className="text-[10px] text-slate-400 shrink-0">
-                            {timeAgo(n.created_at)}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-slate-600 mt-1 leading-5">
-                          {n.message}
-                        </p>
-
-                        {!n.read && (
-                          <p className="text-[10px] font-semibold text-blue-600 mt-2">
-                            Click to mark as read
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pending Approvals */}
-        <div className={`${role === "hr" ? "lg:col-span-3" : "lg:col-span-1"} bg-white rounded-xl border border-slate-200/80 shadow-sm p-5`}>
+        <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display font-semibold text-slate-800 flex items-center gap-2"><ClipboardCheck className="w-4 h-4 text-orange-500" /> Pending Approvals</h3>
             {(role === "management" || role === "admin") && data?.pending_approvals.length > 0 && (
@@ -372,7 +141,6 @@ export default function Dashboard() {
         </div>
 
         {/* Recent HR Activity */}
-        {role !== "hr" && (
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200/80 shadow-sm p-5">
           <h3 className="font-display font-semibold text-slate-800 mb-4 flex items-center gap-2"><Activity /> Recent HR Activity</h3>
           {!data ? (
@@ -397,7 +165,6 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        )}
       </div>
     </div>
   );

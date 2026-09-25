@@ -7,11 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Briefcase, MapPin, Users, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Plus, Briefcase, MapPin, Users, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-const EMPTY = { designation: "", branch: "", vacancies: 1, salary_min: "", salary_max: "", experience: "", assigned_hr_id: "", status: "Active" };
-const BRANCHES = ["Bangalore", "Coimbatore", "Tirupur", "Chennai"];
+const EMPTY = { designation: "", city: "", vacancies: 1, salary_min: "", salary_max: "", experience: "", assigned_hr_id: "", status: "Active" };
 const JOB_STATUS = ["Active", "On Hold", "Closed"];
 const STATUS_STYLE = { Active: "bg-emerald-50 text-emerald-700 border-emerald-200", "On Hold": "bg-amber-50 text-amber-700 border-amber-200", Closed: "bg-slate-100 text-slate-600 border-slate-200" };
 const STATUS_DOT = { Active: "bg-emerald-500", "On Hold": "bg-amber-500", Closed: "bg-slate-400" };
@@ -24,48 +23,25 @@ export default function Jobs() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [jobToDelete, setJobToDelete] = useState(null);
 
   const load = () => api.get("/jobs").then((r) => setJobs(r.data));
   useEffect(() => { load(); api.get("/users").then((r) => setHrs(r.data.filter((u) => u.role === "hr"))); }, []);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const openCreate = () => { setEditingId(null); setForm(EMPTY); setOpen(true); };
-  const openEdit = (j) => {
-    setEditingId(j.id);
-    setForm({ designation: j.designation || "", branch: j.branch || "", vacancies: j.vacancies ?? 1, salary_min: j.salary_min ?? "", salary_max: j.salary_max ?? "", experience: j.experience || "", assigned_hr_id: j.assigned_hr_id || "", status: j.status || "Active" });
-    setOpen(true);
-  };
-
   const submit = async () => {
     if (!form.designation) { toast.error("Designation is required"); return; }
     setBusy(true);
     try {
-      const payload = {
-        ...form, vacancies: form.vacancies === "" || Number.isNaN(Number(form.vacancies)) ? 1 : Number(form.vacancies),
+      await api.post("/jobs", {
+        ...form, vacancies: Number(form.vacancies) || 1,
         salary_min: form.salary_min ? Number(form.salary_min) : null,
         salary_max: form.salary_max ? Number(form.salary_max) : null,
         assigned_hr_id: form.assigned_hr_id || null,
-      };
-      if (editingId) await api.put(`/jobs/${editingId}`, payload);
-      else await api.post("/jobs", payload);
-      toast.success(editingId ? "Job updated successfully" : "Job created successfully");
-      setOpen(false); setForm(EMPTY); setEditingId(null); load();
+      });
+      toast.success("Job created successfully");
+      setOpen(false); setForm(EMPTY); load();
     } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); } finally { setBusy(false); }
-  };
-
-  const confirmDeleteJob = async () => {
-    const j = jobToDelete;
-    if (!j) return;
-    setDeletingId(j.id);
-    try {
-      await api.delete(`/jobs/${j.id}`);
-      toast.success("Job deleted successfully");
-      load();
-    } catch (e) { toast.error(formatApiError(e.response?.data?.detail)); } finally { setDeletingId(null); setJobToDelete(null); }
   };
 
   return (
@@ -75,13 +51,13 @@ export default function Jobs() {
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">Jobs</h1>
           <p className="text-sm text-slate-500 mt-1">Open roles and hiring requirements.</p>
         </div>
-        {canManage && <Button data-testid="create-job-button" onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 gap-1.5 shadow-sm shadow-blue-500/30 shrink-0"><Plus className="w-4 h-4" /> <span className="hidden sm:inline">Create Job</span></Button>}
+        {canManage && <Button data-testid="create-job-button" onClick={() => setOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-1.5 shadow-sm shadow-blue-500/30 shrink-0"><Plus className="w-4 h-4" /> <span className="hidden sm:inline">Create Job</span></Button>}
       </div>
 
       {!jobs ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}</div>
       ) : jobs.length === 0 ? (
-        <EmptyState testid="jobs-empty" icon={Briefcase} title="No jobs yet" description={canManage ? "Create your first job requirement to start assigning candidates." : "No open roles have been created yet."} action={canManage && <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Create Job</Button>} />
+        <EmptyState testid="jobs-empty" icon={Briefcase} title="No jobs yet" description={canManage ? "Create your first job requirement to start assigning candidates." : "No open roles have been created yet."} action={canManage && <Button onClick={() => setOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Create Job</Button>} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 stagger">
           {jobs.map((j) => (
@@ -93,7 +69,7 @@ export default function Jobs() {
               </div>
               <h3 className="relative font-display font-semibold text-slate-900 mt-3">{j.designation}</h3>
               <div className="relative flex items-center gap-3 text-xs text-slate-500 mt-1">
-                <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{j.branch || j.city || "—"}</span>
+                <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{j.city || "—"}</span>
                 <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" />{j.vacancies} vacancies</span>
               </div>
               <div className="relative mt-3 pt-3 border-t border-slate-100 space-y-1.5 text-sm">
@@ -101,12 +77,6 @@ export default function Jobs() {
                 <div className="flex justify-between"><span className="text-slate-400">Experience</span><span className="font-medium text-slate-700">{j.experience || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">Assigned HR</span><span className="font-medium text-slate-700">{j.assigned_hr_name || "—"}</span></div>
               </div>
-              {canManage && (
-                <div className="relative mt-3 flex gap-2">
-                  <Button data-testid={`edit-job-button-${j.id}`} variant="outline" size="sm" onClick={() => openEdit(j)} className="flex-1 gap-1.5"><Pencil className="w-3.5 h-3.5" /> Edit</Button>
-                  <Button data-testid={`delete-job-button-${j.id}`} variant="outline" size="sm" onClick={() => setJobToDelete(j)} disabled={deletingId === j.id} className="gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">{deletingId === j.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}</Button>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -114,17 +84,17 @@ export default function Jobs() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="bg-white max-w-lg max-h-[90vh] overflow-y-auto" data-testid="create-job-modal">
-          <DialogHeader><DialogTitle className="font-display">{editingId ? "Edit Job" : "Create Job"}</DialogTitle><DialogDescription>{editingId ? "Update this role's details and requirements." : "Define a role and requirements for HR to assign candidates."}</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-display">Create Job</DialogTitle><DialogDescription>Define a role and requirements for HR to assign candidates.</DialogDescription></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5 sm:col-span-2"><Label>Designation *</Label><Input data-testid="job-designation-input" value={form.designation} onChange={(e) => set("designation", e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Branch</Label><Select value={form.branch} onValueChange={(v) => set("branch", v)}><SelectTrigger data-testid="job-branch-select"><SelectValue placeholder="Select branch" /></SelectTrigger><SelectContent>{BRANCHES.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Vacancies</Label><Input data-testid="job-vacancies-input" type="number" disabled={form.status === "Closed"} value={form.vacancies} onChange={(e) => set("vacancies", e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Salary Min (₹)</Label><Input data-testid="job-salary-min-input" type="number" className="no-spinner" onWheel={(e) => e.target.blur()} value={form.salary_min} onChange={(e) => set("salary_min", e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Salary Max (₹)</Label><Input data-testid="job-salary-max-input" type="number" className="no-spinner" onWheel={(e) => e.target.blur()} value={form.salary_max} onChange={(e) => set("salary_max", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>City</Label><Input data-testid="job-city-input" value={form.city} onChange={(e) => set("city", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Vacancies</Label><Input data-testid="job-vacancies-input" type="number" value={form.vacancies} onChange={(e) => set("vacancies", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Salary Min (₹)</Label><Input data-testid="job-salary-min-input" type="number" value={form.salary_min} onChange={(e) => set("salary_min", e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Salary Max (₹)</Label><Input data-testid="job-salary-max-input" type="number" value={form.salary_max} onChange={(e) => set("salary_max", e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Experience</Label><Input data-testid="job-experience-input" value={form.experience} onChange={(e) => set("experience", e.target.value)} placeholder="e.g. 2-4 years" /></div>
             <div className="space-y-1.5">
               <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v, vacancies: v === "Closed" ? 0 : f.vacancies }))}>
+              <Select value={form.status} onValueChange={(v) => set("status", v)}>
                 <SelectTrigger data-testid="job-status-select"><SelectValue /></SelectTrigger>
                 <SelectContent>{JOB_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
@@ -139,24 +109,7 @@ export default function Jobs() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button data-testid="submit-job-button" onClick={submit} disabled={busy} className="bg-blue-600 hover:bg-blue-700">{busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingId ? "Save" : "Create"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!jobToDelete} onOpenChange={(v) => !v && setJobToDelete(null)}>
-        <DialogContent className="bg-white max-w-sm" data-testid="delete-job-modal">
-          <DialogHeader>
-            <DialogTitle className="font-display">Delete job?</DialogTitle>
-            <DialogDescription>
-              Delete <span className="font-semibold text-slate-700">"{jobToDelete?.designation}"</span>? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setJobToDelete(null)}>Cancel</Button>
-            <Button data-testid="confirm-delete-job-button" onClick={confirmDeleteJob} disabled={deletingId === jobToDelete?.id} className="bg-rose-600 hover:bg-rose-700">
-              {deletingId === jobToDelete?.id && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Delete
-            </Button>
+            <Button data-testid="submit-job-button" onClick={submit} disabled={busy} className="bg-blue-600 hover:bg-blue-700">{busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Create</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

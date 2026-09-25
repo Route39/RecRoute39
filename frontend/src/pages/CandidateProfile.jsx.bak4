@@ -48,16 +48,9 @@ export default function CandidateProfile() {
     </div>
   );
 
-  const changeStatus = async (value) => {
-    const [status, interview_type] = value.split("|");
-    try {
-      await api.put(`/candidates/${id}/status`, { status, interview_type: interview_type || null });
-      toast.success(`Status updated to ${interview_type ? `${interview_type} Interview` : status}`);
-      load();
-    } catch (e) {
-      const d = e.response?.data?.detail;
-      toast.error(typeof d === "string" ? d : "Could not update status");
-    }
+  const changeStatus = async (status) => {
+    try { await api.put(`/candidates/${id}/status`, { status }); toast.success(`Status updated to ${status}`); load(); }
+    catch (e) { toast.error("Could not update status"); }
   };
   const addNote = async () => {
     if (!note.trim()) return;
@@ -114,7 +107,6 @@ export default function CandidateProfile() {
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-3">
                 <StatusBadge status={c.status} />
-                {c.status === "Interview" && c.interview_type && <span className="text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5">{c.interview_type}</span>}
                 <SourceBadge source={c.source} />
                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-2.5 py-0.5"><InitialsAvatar name={c.assigned_hr_name || "HR"} size="sm" className="!w-4 !h-4 !text-[8px]" /> {c.assigned_hr_name}</span>
               </div>
@@ -123,13 +115,9 @@ export default function CandidateProfile() {
 
           <div className="flex flex-nowrap items-center gap-2 overflow-x-auto shrink-0">
             {isHR && (
-              <Select value={c.status === "Interview" && c.interview_type ? `Interview|${c.interview_type}` : c.status} onValueChange={changeStatus}>
+              <Select value={c.status} onValueChange={changeStatus}>
                 <SelectTrigger data-testid="status-change-select" className="w-[170px] h-9 text-sm bg-white"><SelectValue /></SelectTrigger>
-                <SelectContent>{STATUSES.map((s) => s === "Interview" ? [
-                  <SelectItem key="iv" value="Interview" disabled className="data-[disabled]:opacity-100 font-medium">Interview</SelectItem>,
-                  <SelectItem key="iv-v" value="Interview|Virtual" className="pl-10">Virtual Interview</SelectItem>,
-                  <SelectItem key="iv-w" value="Interview|Walk-in" className="pl-10">Walk-in Interview</SelectItem>,
-                ] : <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                <SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             )}
             {isHR && c.status !== "Approval Pending" && c.status !== "Selected" && c.status !== "Joined" && (

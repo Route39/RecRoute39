@@ -57,13 +57,16 @@ export default function Candidates() {
         </div>
         {showFilters && (
           <div className="grid grid-cols-2 md:grid-cols-7 gap-2 animate-fade">
-            <div className="md:col-span-2"><FilterSelect testid="filter-designation-select" label="Designation" value={f.designation} onChange={(v) => set("designation", v)} options={filters.designations} /></div>
+            <FilterSelect testid="filter-designation-select" label="Designation" value={f.designation} onChange={(v) => set("designation", v)} options={filters.designations} />
             <FilterSelect testid="filter-city-select" label="City" value={f.city} onChange={(v) => set("city", v)} options={filters.cities} />
             <FilterSelect testid="filter-hr-select" label="HR" value={f.hr} onChange={(v) => set("hr", v)} options={filters.hrs.map((h) => ({ value: h.id, label: h.name }))} />
             <FilterSelect testid="filter-source-select" label="Source" value={f.source} onChange={(v) => set("source", v)} options={filters.sources} />
             <FilterSelect testid="filter-status-select" label="Status" value={f.status} onChange={(v) => set("status", v)} options={filters.statuses} />
             <div className="space-y-1">
               <input data-testid="filter-date-from" type="date" value={f.date_from} onChange={(e) => setF((x) => ({ ...x, date_from: e.target.value, date_to: e.target.value }))} className="h-9 w-full text-sm bg-slate-50 border border-slate-200 rounded-md px-2 text-slate-600" />
+            </div>
+            <div className="space-y-1">
+              {/* single-date filter: date_to follows date_from */}
             </div>
           </div>
         )}

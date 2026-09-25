@@ -16,7 +16,6 @@ const NAV = [
   { to: "/approvals", label: "Approvals", icon: ClipboardCheck, roles: ["management", "admin"] },
   { to: "/monitoring", label: "HR Monitoring", icon: Activity, roles: ["management", "admin"] },
   { to: "/jobs", label: "Jobs", icon: Briefcase, roles: ["hr", "management", "admin"] },
-  { to: "/onboarding", label: "Onboarding", icon: User, roles: ["hr", "management", "admin"] },
   { to: "/activity", label: "Activity Log", icon: ShieldCheck, roles: ["hr", "management", "admin"] },
 ];
 
@@ -149,7 +148,7 @@ export default function Layout({ children }) {
                 <SelectContent>
                   <SelectItem value="admin">View as Admin</SelectItem>
                   <SelectItem value="hr">View as HR</SelectItem>
-                  {/* <SelectItem value="management">View as Management</SelectItem> */}
+                  <SelectItem value="management">View as Management</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -227,10 +226,8 @@ export default function Layout({ children }) {
                   <div className="text-xs font-normal text-blue-600 capitalize mt-0.5">{user?.role}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* Dashboard option hidden per request
                 <DropdownMenuItem onClick={() => navigate("/dashboard")} className="cursor-pointer"><User className="w-4 h-4 mr-2" /> Dashboard</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                */}
                 <DropdownMenuItem data-testid="logout-button" onClick={handleLogout} className="cursor-pointer text-rose-600 focus:text-rose-600"><LogOut className="w-4 h-4 mr-2" /> Log out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

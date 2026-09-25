@@ -16,7 +16,6 @@ const NAV = [
   { to: "/approvals", label: "Approvals", icon: ClipboardCheck, roles: ["management", "admin"] },
   { to: "/monitoring", label: "HR Monitoring", icon: Activity, roles: ["management", "admin"] },
   { to: "/jobs", label: "Jobs", icon: Briefcase, roles: ["hr", "management", "admin"] },
-  { to: "/onboarding", label: "Onboarding", icon: User, roles: ["hr", "management", "admin"] },
   { to: "/activity", label: "Activity Log", icon: ShieldCheck, roles: ["hr", "management", "admin"] },
 ];
 
@@ -149,7 +148,7 @@ export default function Layout({ children }) {
                 <SelectContent>
                   <SelectItem value="admin">View as Admin</SelectItem>
                   <SelectItem value="hr">View as HR</SelectItem>
-                  {/* <SelectItem value="management">View as Management</SelectItem> */}
+                  <SelectItem value="management">View as Management</SelectItem>
                 </SelectContent>
               </Select>
             )}

@@ -11,9 +11,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
-const BRANCHES = ["Tirupur", "Bangalore", "Coimbatore", "Chennai"];
-
-const EMPTY = { name: "", phone: "", email: "", designation: "", city: "", branch: "", source: "Naukri", current_salary: "", expected_salary: "", experience: "", remarks: "", assigned_hr_id: "", job_id: "", relevant_job: "" };
+const EMPTY = { name: "", phone: "", email: "", designation: "", city: "", source: "Naukri", current_salary: "", expected_salary: "", experience: "", remarks: "", assigned_hr_id: "", job_id: "" };
 
 export default function AddCandidateModal({ open, onOpenChange, onCreated }) {
   const { user } = useAuth();
@@ -114,13 +112,6 @@ export default function AddCandidateModal({ open, onOpenChange, onCreated }) {
             <Input data-testid="candidate-city-input" value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" />
           </div>
           <div className="space-y-1.5">
-            <Label>Branch</Label>
-            <Select value={form.branch} onValueChange={(v) => set("branch", v)}>
-              <SelectTrigger data-testid="candidate-branch-select"><SelectValue placeholder="Select branch" /></SelectTrigger>
-              <SelectContent>{BRANCHES.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label>Source</Label>
             <Select value={form.source} onValueChange={(v) => set("source", v)}>
               <SelectTrigger data-testid="candidate-source-select"><SelectValue /></SelectTrigger>
@@ -136,11 +127,11 @@ export default function AddCandidateModal({ open, onOpenChange, onCreated }) {
           </div>
           <div className="space-y-1.5">
             <Label>Current Salary (₹)</Label>
-            <Input data-testid="candidate-current-salary-input" type="text" inputMode="numeric" value={form.current_salary} onChange={(e) => set("current_salary", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 25000" />
+            <Input data-testid="candidate-current-salary-input" type="number" value={form.current_salary} onChange={(e) => set("current_salary", e.target.value)} placeholder="e.g. 25000" />
           </div>
           <div className="space-y-1.5">
             <Label>Expected Salary (₹)</Label>
-            <Input data-testid="candidate-expected-salary-input" type="text" inputMode="numeric" value={form.expected_salary} onChange={(e) => set("expected_salary", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 35000" />
+            <Input data-testid="candidate-expected-salary-input" type="number" value={form.expected_salary} onChange={(e) => set("expected_salary", e.target.value)} placeholder="e.g. 35000" />
           </div>
           <div className="space-y-1.5">
             <Label>Experience</Label>
@@ -148,7 +139,10 @@ export default function AddCandidateModal({ open, onOpenChange, onCreated }) {
           </div>
           <div className="space-y-1.5">
             <Label>Relevant Job</Label>
-            <Input data-testid="candidate-job-input" value={form.relevant_job} onChange={(e) => set("relevant_job", e.target.value)} placeholder="e.g. Sales Executive (optional)" />
+            <Select value={form.job_id} onValueChange={(v) => set("job_id", v)}>
+              <SelectTrigger data-testid="candidate-job-select"><SelectValue placeholder="Optional" /></SelectTrigger>
+              <SelectContent>{jobs.map((j) => <SelectItem key={j.id} value={j.id}>{j.designation} · {j.city}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>HR Update / Remarks</Label>

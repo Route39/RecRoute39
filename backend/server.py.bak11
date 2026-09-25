@@ -501,7 +501,7 @@ def compute_status_at(d: dict, status: str):
 
 def candidate_summary(c: dict) -> dict:
     return {
-        "id": c["id"], "onboarding_sent": c.get("onboarding_sent", False), "interview_type": c.get("interview_type"), "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
+        "id": c["id"], "onboarding_sent": c.get("onboarding_sent", False), "name": c["name"], "phone": c["phone"], "email": c.get("email", ""), "designation": c["designation"],
         "city": c.get("city", ""), "source": c.get("source", ""), "expected_salary": c.get("expected_salary"),
         "current_salary": c.get("current_salary"), "status": c["status"],
         "assigned_hr_name": c.get("assigned_hr_name"), "updated_at": c.get("updated_at"),

@@ -5,17 +5,15 @@ import { useAuth } from "@/context/AuthContext";
 import { StatusBadge, SourceBadge, statusDot } from "@/components/Badges";
 import { Skeleton, InitialsAvatar } from "@/components/Primitives";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { OnboardingTab } from "@/components/Onboarding";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, Plus, Send, CheckCircle2, XCircle, RotateCcw, Loader2, Clock, IndianRupee, GraduationCap, Pencil, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, Plus, Send, CheckCircle2, XCircle, RotateCcw, Loader2, Clock, IndianRupee, GraduationCap, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import EditCandidateModal from "@/components/EditCandidateModal";
-import EditCreatedAtModal from "@/components/EditCreatedAtModal";
 
 export default function CandidateProfile() {
   const { id } = useParams();
@@ -31,7 +29,6 @@ export default function CandidateProfile() {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [editCreatedAtOpen, setEditCreatedAtOpen] = useState(false);
   const fileRef = useRef();
 
   const isHR = role === "hr" || role === "admin";
@@ -48,16 +45,9 @@ export default function CandidateProfile() {
     </div>
   );
 
-  const changeStatus = async (value) => {
-    const [status, interview_type] = value.split("|");
-    try {
-      await api.put(`/candidates/${id}/status`, { status, interview_type: interview_type || null });
-      toast.success(`Status updated to ${interview_type ? `${interview_type} Interview` : status}`);
-      load();
-    } catch (e) {
-      const d = e.response?.data?.detail;
-      toast.error(typeof d === "string" ? d : "Could not update status");
-    }
+  const changeStatus = async (status) => {
+    try { await api.put(`/candidates/${id}/status`, { status }); toast.success(`Status updated to ${status}`); load(); }
+    catch (e) { toast.error("Could not update status"); }
   };
   const addNote = async () => {
     if (!note.trim()) return;
@@ -114,7 +104,6 @@ export default function CandidateProfile() {
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-3">
                 <StatusBadge status={c.status} />
-                {c.status === "Interview" && c.interview_type && <span className="text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5">{c.interview_type}</span>}
                 <SourceBadge source={c.source} />
                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-2.5 py-0.5"><InitialsAvatar name={c.assigned_hr_name || "HR"} size="sm" className="!w-4 !h-4 !text-[8px]" /> {c.assigned_hr_name}</span>
               </div>
@@ -123,16 +112,12 @@ export default function CandidateProfile() {
 
           <div className="flex flex-nowrap items-center gap-2 overflow-x-auto shrink-0">
             {isHR && (
-              <Select value={c.status === "Interview" && c.interview_type ? `Interview|${c.interview_type}` : c.status} onValueChange={changeStatus}>
+              <Select value={c.status} onValueChange={changeStatus}>
                 <SelectTrigger data-testid="status-change-select" className="w-[170px] h-9 text-sm bg-white"><SelectValue /></SelectTrigger>
-                <SelectContent>{STATUSES.map((s) => s === "Interview" ? [
-                  <SelectItem key="iv" value="Interview" disabled className="data-[disabled]:opacity-100 font-medium">Interview</SelectItem>,
-                  <SelectItem key="iv-v" value="Interview|Virtual" className="pl-10">Virtual Interview</SelectItem>,
-                  <SelectItem key="iv-w" value="Interview|Walk-in" className="pl-10">Walk-in Interview</SelectItem>,
-                ] : <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                <SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             )}
-            {isHR && c.status !== "Approval Pending" && c.status !== "Selected" && c.status !== "Joined" && (
+            {isHR && c.status !== "Approval Pending" && c.status !== "Selected" && (
               <Button data-testid="send-for-approval-button" onClick={() => { setApproval({ recommended_salary: c.expected_salary || "", hr_remark: "" }); setApprovalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 h-9 gap-1.5 shadow-sm shadow-blue-500/30 whitespace-nowrap">
                 <Send className="w-4 h-4" /> Send for Approval
               </Button>
@@ -152,11 +137,10 @@ export default function CandidateProfile() {
           </div>
         </div>
         {/* quick metrics strip */}
-        <div className="relative grid grid-cols-2 sm:grid-cols-5 divide-x divide-slate-100 border-t border-slate-100 bg-white/60">
+        <div className="relative grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100 border-t border-slate-100 bg-white/60">
           <Metric icon={IndianRupee} label="Expected" value={formatINR(c.expected_salary)} />
           <Metric icon={IndianRupee} label="Current" value={formatINR(c.current_salary)} />
           <Metric icon={GraduationCap} label="Experience" value={c.experience || "—"} />
-          <Metric icon={CalendarPlus} label="Added" value={formatDateTime(c.created_at).split(", ")[0]} sub={formatDateTime(c.created_at).split(", ").pop()} onClick={() => setEditCreatedAtOpen(true)} />
           <Metric icon={Clock} label="Updated" value={timeAgo(c.updated_at)} />
         </div>
       </div>
@@ -168,7 +152,6 @@ export default function CandidateProfile() {
           <TabsTrigger value="updates" data-testid="tab-updates">HR Updates</TabsTrigger>
           <TabsTrigger value="timeline" data-testid="tab-timeline">Timeline</TabsTrigger>
           <TabsTrigger value="approval" data-testid="tab-approval">Approval</TabsTrigger>
-          <TabsTrigger value="onboarding" data-testid="tab-onboarding">Onboarding</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
@@ -271,7 +254,6 @@ export default function CandidateProfile() {
         </TabsContent>
 
         {/* Approval */}
-        <TabsContent value="onboarding">{c && <OnboardingTab candidate={c} canSend={role === "hr" || role === "admin"} />}</TabsContent>
         <TabsContent value="approval">
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6 animate-fade">
             {!c.approval ? (
@@ -332,7 +314,6 @@ export default function CandidateProfile() {
 
       {/* Edit candidate modal — pre-filled with the existing details */}
       <EditCandidateModal open={editOpen} onOpenChange={setEditOpen} candidate={c} onUpdated={() => load()} />
-      <EditCreatedAtModal open={editCreatedAtOpen} onOpenChange={setEditCreatedAtOpen} candidate={c} onUpdated={() => load()} />
     </div>
   );
 }
@@ -346,18 +327,11 @@ function Field({ label, value }) {
   );
 }
 
-function Metric({ icon: Icon, label, value, sub, onClick }) {
+function Metric({ icon: Icon, label, value }) {
   return (
-    <div
-      onClick={onClick}
-      className={`px-4 py-3 flex items-center gap-2.5${onClick ? " cursor-pointer hover:bg-slate-50 transition-colors" : ""}`}
-    >
+    <div className="px-4 py-3 flex items-center gap-2.5">
       <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0"><Icon className="w-4 h-4" /></div>
-      <div className="min-w-0">
-        <div className="text-[10px] text-slate-400 uppercase tracking-wide">{label}</div>
-        <div className="text-sm font-semibold text-slate-800 truncate" title={sub ? `${value}, ${sub}` : value}>{value}</div>
-        {sub && <div className="text-[11px] text-slate-400 truncate">{sub}</div>}
-      </div>
+      <div className="min-w-0"><div className="text-[10px] text-slate-400 uppercase tracking-wide">{label}</div><div className="text-sm font-semibold text-slate-800 truncate">{value}</div></div>
     </div>
   );
 }

@@ -13,7 +13,6 @@ import Monitoring from "@/pages/Monitoring";
 import Jobs from "@/pages/Jobs";
 import ActivityLog from "@/pages/ActivityLog";
 import OnboardForm from "@/pages/OnboardForm";
-import OnboardingPage from "@/pages/Onboarding";
 import { Loader2 } from "lucide-react";
 
 function Protected({ children, roles }) {
@@ -38,7 +37,6 @@ function AppRoutes() {
       <Route path="/monitoring" element={<Protected roles={["management", "admin"]}><Monitoring /></Protected>} />
       <Route path="/jobs" element={<Protected><Jobs /></Protected>} />
       <Route path="/activity" element={<Protected><ActivityLog /></Protected>} />
-      <Route path="/onboarding" element={<Protected><OnboardingPage /></Protected>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

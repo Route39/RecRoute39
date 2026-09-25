@@ -149,7 +149,7 @@ export default function Layout({ children }) {
                 <SelectContent>
                   <SelectItem value="admin">View as Admin</SelectItem>
                   <SelectItem value="hr">View as HR</SelectItem>
-                  {/* <SelectItem value="management">View as Management</SelectItem> */}
+                  <SelectItem value="management">View as Management</SelectItem>
                 </SelectContent>
               </Select>
             )}
