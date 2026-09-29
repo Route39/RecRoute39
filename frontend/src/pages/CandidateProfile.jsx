@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, Plus, Send, CheckCircle2, XCircle, RotateCcw, Loader2, Clock, IndianRupee, GraduationCap, Pencil, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MapPin, Briefcase, Upload, FileText, Download, Plus, Send, CheckCircle2, XCircle, RotateCcw, Loader2, Clock, IndianRupee, GraduationCap, Pencil, CalendarPlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import EditCandidateModal from "@/components/EditCandidateModal";
 import EditCreatedAtModal from "@/components/EditCreatedAtModal";
@@ -20,6 +20,13 @@ import EditCreatedAtModal from "@/components/EditCreatedAtModal";
 export default function CandidateProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deleteCandidate = async () => {
+    setDeleting(true);
+    try { await api.delete(`/candidates/${id}`); toast.success("Candidate deleted"); navigate("/candidates"); }
+    catch (e) { const d = e.response?.data?.detail; toast.error(typeof d === "string" ? d : "Could not delete candidate"); setDeleting(false); }
+  };
   const { role } = useAuth();
   const [c, setC] = useState(null);
   const [note, setNote] = useState("");
@@ -141,6 +148,25 @@ export default function CandidateProfile() {
               <Button data-testid="edit-candidate-button" variant="outline" onClick={() => setEditOpen(true)} className="h-9 gap-1.5 whitespace-nowrap">
                 <Pencil className="w-4 h-4" /> Edit
               </Button>
+            )}
+            {isHR && (
+              <>
+                <Button data-testid="delete-candidate-button" variant="outline" onClick={() => setDeleteOpen(true)} className="h-9 gap-1.5 whitespace-nowrap text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">
+                  <Trash2 className="w-4 h-4" /> Delete
+                </Button>
+                <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                  <DialogContent className="bg-white max-w-sm">
+                    <DialogHeader>
+                      <DialogTitle className="font-display">Delete candidate?</DialogTitle>
+                      <DialogDescription>{c.name} and all their details (updates, approval, onboarding) will be permanently deleted. This cannot be undone.</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+                      <Button onClick={deleteCandidate} disabled={deleting} className="bg-rose-600 hover:bg-rose-700">{deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Delete</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
             {isMgmt && c.status === "Approval Pending" && (
               <>
