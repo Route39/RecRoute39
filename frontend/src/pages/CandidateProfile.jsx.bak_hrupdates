@@ -187,7 +187,7 @@ export default function CandidateProfile() {
         </div>
       </div>
 
-      <Tabs defaultValue={new URLSearchParams(window.location.search).get("tab") || "details"}>
+      <Tabs defaultValue="details">
         <TabsList className="bg-white border border-slate-200/80 shadow-sm p-1 h-auto flex-wrap">
           <TabsTrigger value="details" data-testid="tab-details">Details</TabsTrigger>
           <TabsTrigger value="resume" data-testid="tab-resume">Resume</TabsTrigger>

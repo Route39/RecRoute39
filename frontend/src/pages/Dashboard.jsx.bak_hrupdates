@@ -4,7 +4,7 @@ import { api, formatDateTime, timeAgo, formatINR } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { StatusBadge, statusDot } from "@/components/Badges";
 import { Skeleton, EmptyState, InitialsAvatar } from "@/components/Primitives";
-import { Users, UserPlus, CalendarClock, Star, ClipboardCheck, CheckCircle2, XCircle, Briefcase, ArrowRight, Contact, Sparkles, RotateCcw, Send, MessageCircle, PhoneOff } from "lucide-react";
+import { Users, UserPlus, CalendarClock, Star, ClipboardCheck, CheckCircle2, XCircle, Briefcase, ArrowRight, Contact, Sparkles, RotateCcw, Send, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -25,7 +25,6 @@ const CARDS = [
   { key: "Rejected", label: "Rejected", icon: XCircle, tint: "text-rose-700 bg-rose-100", glow: "from-rose-200/40", status: "Rejected" },
   { key: "Send Back", label: "Send Back", icon: RotateCcw, tint: "text-fuchsia-700 bg-fuchsia-100", glow: "from-fuchsia-200/40", status: "Send Back" },
   { key: "Joined", label: "Joined", icon: Briefcase, tint: "text-green-800 bg-green-100", glow: "from-green-200/40", status: "Joined" },
-  { key: "RNR", label: "RNR", icon: PhoneOff, tint: "text-red-700 bg-red-100", glow: "from-red-200/40", status: "RNR" },
 ];
 
 const FUNNEL = [

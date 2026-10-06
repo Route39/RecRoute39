@@ -1,4 +1,3 @@
-import re
 import os
 import uuid
 from pymongo.errors import OperationFailure
@@ -492,7 +491,9 @@ def clean_candidate(c: dict) -> dict:
 def compute_status_at(d: dict, status: str):
     # "Send Back" -> when that decision was made (approval.decision_at).
     # Any real status -> the most recent status_history entry matching it.
-    if status == "Send Back":
+    if status == "RNR":
+        q["updates.text"] = {"$regex": r"\brnr\b", "$options": "i"}
+    elif status == "Send Back":
         appr = d.get("approval")
         if appr and appr.get("decision") == "Send Back":
             return appr.get("decision_at")
@@ -512,21 +513,10 @@ def candidate_summary(c: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Candidates
 # ---------------------------------------------------------------------------
-async def find_by_phone(phone: str, exclude_id: str = None):
-    digits = re.sub(r"\D", "", phone or "")
-    if len(digits) < 10:
-        q = {"phone": (phone or "").strip()}
-    else:
-        last10 = digits[-10:]
-        q = {"phone": {"$regex": r"\D*".join(last10) + r"\D*$"}}
-    if exclude_id:
-        q["id"] = {"$ne": exclude_id}
-    return await db.candidates.find_one(q)
-
 @api.get("/candidates/check-duplicate")
 async def check_duplicate(phone: str = Query(...), user: dict = Depends(get_current_user)):
     phone = phone.strip()
-    existing = await find_by_phone(phone)
+    existing = await db.candidates.find_one({"phone": phone})
     if existing:
         return {"exists": True, "candidate": candidate_summary(clean_candidate(existing))}
     return {"exists": False}
@@ -552,9 +542,7 @@ async def list_candidates(
     if status and status != "all":
         # FIX: "Send Back" isn't a real status (candidates go back to "Shortlisted"
         # after being sent back) — it's tracked via approval.decision instead.
-        if status == "RNR":
-            q["updates.text"] = {"$regex": r"\brnr\b", "$options": "i"}
-        elif status == "Send Back":
+        if status == "Send Back":
             q["approval.decision"] = "Send Back"
         else:
             q["status"] = status
@@ -584,7 +572,7 @@ async def candidate_filters(user: dict = Depends(get_current_user)):
 @api.post("/candidates")
 async def create_candidate(body: CandidateBody, user: dict = Depends(require_roles("hr", "admin"))):
     phone = body.phone.strip()
-    existing = await find_by_phone(phone)
+    existing = await db.candidates.find_one({"phone": phone})
     if existing:
         raise HTTPException(status_code=409, detail={"message": "Candidate already exists", "candidate": candidate_summary(clean_candidate(existing))})
     hr_id = body.assigned_hr_id or user["id"]

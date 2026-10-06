@@ -1,4 +1,3 @@
-import re
 import os
 import uuid
 from pymongo.errors import OperationFailure
@@ -512,21 +511,10 @@ def candidate_summary(c: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Candidates
 # ---------------------------------------------------------------------------
-async def find_by_phone(phone: str, exclude_id: str = None):
-    digits = re.sub(r"\D", "", phone or "")
-    if len(digits) < 10:
-        q = {"phone": (phone or "").strip()}
-    else:
-        last10 = digits[-10:]
-        q = {"phone": {"$regex": r"\D*".join(last10) + r"\D*$"}}
-    if exclude_id:
-        q["id"] = {"$ne": exclude_id}
-    return await db.candidates.find_one(q)
-
 @api.get("/candidates/check-duplicate")
 async def check_duplicate(phone: str = Query(...), user: dict = Depends(get_current_user)):
     phone = phone.strip()
-    existing = await find_by_phone(phone)
+    existing = await db.candidates.find_one({"phone": phone})
     if existing:
         return {"exists": True, "candidate": candidate_summary(clean_candidate(existing))}
     return {"exists": False}
@@ -552,9 +540,7 @@ async def list_candidates(
     if status and status != "all":
         # FIX: "Send Back" isn't a real status (candidates go back to "Shortlisted"
         # after being sent back) — it's tracked via approval.decision instead.
-        if status == "RNR":
-            q["updates.text"] = {"$regex": r"\brnr\b", "$options": "i"}
-        elif status == "Send Back":
+        if status == "Send Back":
             q["approval.decision"] = "Send Back"
         else:
             q["status"] = status
@@ -584,7 +570,7 @@ async def candidate_filters(user: dict = Depends(get_current_user)):
 @api.post("/candidates")
 async def create_candidate(body: CandidateBody, user: dict = Depends(require_roles("hr", "admin"))):
     phone = body.phone.strip()
-    existing = await find_by_phone(phone)
+    existing = await db.candidates.find_one({"phone": phone})
     if existing:
         raise HTTPException(status_code=409, detail={"message": "Candidate already exists", "candidate": candidate_summary(clean_candidate(existing))})
     hr_id = body.assigned_hr_id or user["id"]
@@ -883,22 +869,6 @@ async def mark_notification_read(
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
-@api.get("/dashboard/recent_updates")
-async def recent_hr_updates(limit: int = 10, user: dict = Depends(get_current_user)):
-    match = {"updates.0": {"$exists": True}}
-    if user.get("role") == "hr":
-        match["assigned_hr_id"] = user["id"]
-    pipeline = [
-        {"$match": match},
-        {"$unwind": "$updates"},
-        {"$sort": {"updates.created_at": -1}},
-        {"$limit": max(1, min(limit, 50))},
-        {"$project": {"_id": 0, "id": "$updates.id", "text": "$updates.text",
-                      "hr_name": "$updates.hr_name", "created_at": "$updates.created_at",
-                      "candidate_id": "$id", "candidate_name": "$name", "status": "$status"}},
-    ]
-    return await db.candidates.aggregate(pipeline).to_list(50)
-
 @api.get("/dashboard/stats")
 async def dashboard_stats(user: dict = Depends(get_current_user)):
     total = await db.candidates.count_documents({})
@@ -915,7 +885,6 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
         s["approval"] = d.get("approval")
         pending_list.append(s)
     activities = await db.activities.find({}, {"_id": 0}).sort("created_at", -1).to_list(15)
-    counts["RNR"] = await db.candidates.count_documents({"updates.text": {"$regex": r"\brnr\b", "$options": "i"}})
     return {"total": total, "counts": counts, "pending_approvals": pending_list, "recent_activity": activities}
 
 # ---------------------------------------------------------------------------

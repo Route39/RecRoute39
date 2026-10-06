@@ -34,7 +34,7 @@ export default function AddCandidateModal({ open, onOpenChange, onCreated }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const checkDup = async (phone) => {
-    if (phone.replace(/\D/g, "").length < 10) { setDup(null); return; }
+    if (phone.length < 6) { setDup(null); return; }
     try {
       const { data } = await api.get("/candidates/check-duplicate", { params: { phone } });
       setDup(data.exists ? data.candidate : null);
