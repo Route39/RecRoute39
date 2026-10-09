@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [viewRole, setViewRole] = useState(null); // admin can preview other roles
 
   useEffect(() => {
+    if (/^\/onboard(\/|$)/.test(window.location.pathname)) { setUser(false); return; }
     api.get("/auth/me")
       .then((r) => setUser(r.data))
       .catch(() => setUser(false));

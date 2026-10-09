@@ -86,3 +86,9 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# local patch backups
+*.bak
+*.bak[0-9]*
+*.bak_*
+*.backup*

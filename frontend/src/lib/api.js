@@ -2,6 +2,11 @@ import axios from "axios";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// Pages that must open without login (shared links).
+export const PUBLIC_PATHS = ["/onboard", "/login", "/forgot-password", "/reset-password"];
+export const isPublicPath = (path = window.location.pathname) =>
+  PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+
 export const api = axios.create({
   baseURL: API,
   withCredentials: true,
@@ -15,7 +20,7 @@ api.interceptors.response.use(
     const original = error.config;
     const status = error.response?.status;
     const url = original?.url || "";
-    if (status !== 401 || original?._retry || /\/auth\/(login|refresh|logout)/.test(url)) {
+    if (status !== 401 || original?._retry || isPublicPath() || /\/auth\/(login|refresh|logout)/.test(url)) {
       return Promise.reject(error);
     }
     original._retry = true;
@@ -24,7 +29,7 @@ api.interceptors.response.use(
       await refreshPromise;
       return api(original);
     } catch (e) {
-      if (window.location.pathname !== "/login") window.location.href = "/login";
+      if (!isPublicPath()) window.location.href = "/login";
       return Promise.reject(e);
     }
   }

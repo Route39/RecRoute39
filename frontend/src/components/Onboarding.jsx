@@ -5,12 +5,35 @@ import { Loader2, Send, Copy, CheckCircle2, Clock, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 const FILE_URL = (fid) => `${process.env.REACT_APP_BACKEND_URL}/api/onboarding/files/${fid}`;
-const LABELS = [["name", "Name"], ["contact", "Contact"], ["whatsapp", "WhatsApp"], ["email", "Email"], ["emergency_relationship", "Relationship"], ["emergency_contact", "Emergency contact"], ["designation", "Designation"], ["salary", "Salary (₹)"]];
-const PROOFS = [["aadhaar", "Aadhaar card"], ["pan", "PAN card"], ["passbook", "Bank passbook"], ["licence", "Driving licence"]];
+const LABELS = [
+  ["name", "Name"],
+  ["contact", "Contact"],
+  ["whatsapp", "WhatsApp"],
+  ["email", "Email"],
+  ["emergency_relationship", "Relationship"],
+  ["emergency_contact", "Emergency contact"],
+  ["location", "Location"],
+  ["experience", "Experience"],
+  ["experience_years", "Experience years"],
+  ["experience_months", "Experience months"],
+];
+const PROOFS = [["aadhaar", "Aadhaar card"], ["pan", "PAN card"], ["passbook", "Bank passbook"],
+];
 
 // canUpload: lets HR/Admin upload a proof photo themselves — e.g. the candidate
 // marked it "Not available" and later shared the photo outside the app.
 // onChanged: called after a successful upload so the parent can refetch.
+
+const formatExperienceMonths = (ob, key) => {
+  if (key !== "experience_years") return null;
+  if (ob?.answers?.experience !== "Experienced") return null;
+
+  const years = ob?.answers?.experience_years || "0";
+  const months = ob?.answers?.experience_months || "0";
+
+  return `${years} years ${months} months`;
+};
+
 export function OnboardingView({ ob, canUpload = false, onChanged }) {
   const [uploading, setUploading] = useState({});
   if (!ob) return null;
@@ -40,7 +63,48 @@ export function OnboardingView({ ob, canUpload = false, onChanged }) {
         {LABELS.map(([k, l]) => <div key={k}><div className="text-xs uppercase tracking-wide text-slate-400">{l}</div><div className="text-slate-800 break-words">{a[k] || "—"}</div></div>)}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {PROOFS.map(([k, l]) => { const p = (a.proofs || {})[k] || {}; return (
+        
+          {a.experience === "Experienced" && (
+            <div className="col-span-1 md:col-span-2 mt-2">
+              <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+                Last 3 Months Payslips
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {[
+                  ["payslip1", "Payslip – Latest Month"],
+                  ["payslip2", "Payslip – 2nd Last Month"],
+                  ["payslip3", "Payslip – 3rd Last Month"],
+                ].map(([k, label]) => {
+                  const p = (a.proofs || {})[k] || {};
+
+                  return (
+                    <div key={k} className="overflow-hidden rounded-xl border border-slate-200"> 
+                      <div className="p-3">
+                        <div className="text-sm font-medium text-slate-700 mb-2">
+                          {label}
+                        </div>
+
+                        {p.file_id ? (
+                          <img
+                            src={FILE_URL(p.file_id)}
+                            alt={label}
+                            className="w-full h-56 object-contain rounded-lg bg-slate-50 border"
+                          />
+                        ) : (
+                          <div className="h-56 flex items-center justify-center rounded-lg bg-slate-50 border text-sm text-slate-400">
+                            Not uploaded
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {PROOFS.map(([k, l]) => { const p = (a.proofs || {})[k] || {}; return (
           <div key={k} className="border border-slate-200 rounded-lg p-3">
             <div className="text-sm font-medium text-slate-700 mb-2">{l}</div>
             {p.file_id

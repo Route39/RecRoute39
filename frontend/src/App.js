@@ -30,6 +30,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/onboard" element={<OnboardForm />} />
       <Route path="/onboard/:token" element={<OnboardForm />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/candidates" element={<Protected><Candidates /></Protected>} />
@@ -45,6 +46,19 @@ function AppRoutes() {
 }
 
 export default function App() {
+  // STANDALONE_ONBOARD: the shared onboarding link renders with NO auth provider,
+  // so it never calls /auth/me and can never redirect to /login.
+  if (/^\/onboard(\/|$)/.test(window.location.pathname)) {
+    return (
+      <BrowserRouter>
+        <Toaster position="top-right" richColors />
+        <Routes>
+          <Route path="/onboard" element={<OnboardForm />} />
+          <Route path="/onboard/:token" element={<OnboardForm />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
   return (
     <AuthProvider>
       <BrowserRouter>
