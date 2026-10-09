@@ -68,8 +68,8 @@ export default function Login() {
 
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input data-testid="login-email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@route39.in" required />
+              <Label>Phone Number</Label>
+              <Input data-testid="login-email-input" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter Number" required />
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
