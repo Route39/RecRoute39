@@ -82,17 +82,6 @@ export default function Login() {
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Sign in
             </Button>
           </form>
-
-          <div className="mt-6">
-            <p className="text-xs text-slate-400 mb-2 text-center">Quick demo login</p>
-            <div className="grid grid-cols-3 gap-2">
-              {DEMO.map((d) => (
-                <button key={d.label} data-testid={`demo-login-${d.label.toLowerCase().split(" ")[0]}`} onClick={() => quick(d)} className="text-xs border border-slate-200 rounded-lg py-2 hover:border-blue-400 hover:bg-blue-50 transition-colors text-slate-600">
-                  {d.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
