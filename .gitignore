@@ -92,3 +92,4 @@ credentials.json
 *.bak[0-9]*
 *.bak_*
 *.backup*
+onboard-new.html
