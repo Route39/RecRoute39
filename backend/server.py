@@ -1014,10 +1014,28 @@ from fastapi.responses import Response as _RawResponse
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 onboard_fs = AsyncIOMotorGridFSBucket(db, bucket_name="onboarding_files")
-PROOF_TYPES = ["aadhaar", "pan", "passbook", "payslip1", "payslip2", "payslip3"]
+PROOF_TYPES = ["aadhaar", "pan", "passbook", "bank_statement", "payslip1", "payslip2", "payslip3"]
 REQUIRED_PROOFS = ["aadhaar", "pan", "passbook"]
 PAYSLIP_TYPES = ["payslip1", "payslip2", "payslip3"]
-MAX_UPLOAD = 5 * 1024 * 1024
+MAX_UPLOAD = 10 * 1024 * 1024
+_UPLOAD_CT = ("application/pdf", "application/zip", "application/x-zip-compressed", "application/x-zip", "multipart/x-zip")
+_EXT_CT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
+           ".heic": "image/heic", ".heif": "image/heif", ".pdf": "application/pdf", ".zip": "application/zip"}
+
+def _upload_ct(file):
+    ct = (file.content_type or "").lower()
+    if ct.startswith("image/") or ct == "application/pdf":
+        return ct
+    if ct in _UPLOAD_CT:
+        return "application/zip"
+    name = (file.filename or "").lower()
+    for ext, mapped in _EXT_CT.items():
+        if name.endswith(ext):
+            return mapped
+    return "application/octet-stream"
+
+def _ok_upload(file):
+    return _upload_ct(file) != "application/octet-stream"
 
 class OnboardingSubmit(BaseModel):
     name: str
@@ -1103,13 +1121,13 @@ async def public_onboarding_upload(token: str, proof: str, file: UploadFile = Fi
     ob = await _open_onboarding(token)
     if proof not in PROOF_TYPES:
         raise HTTPException(status_code=400, detail="Invalid proof type")
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only images are allowed")
+    if not _ok_upload(file):
+        raise HTTPException(status_code=400, detail="Only images, PDF or ZIP files are allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD:
-        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
+        raise HTTPException(status_code=400, detail="File must be under 10 MB")
     fid = await onboard_fs.upload_from_stream(file.filename or f"{proof}.jpg", data,
-        metadata={"candidate_id": ob["candidate_id"], "proof": proof, "content_type": file.content_type})
+        metadata={"candidate_id": ob["candidate_id"], "proof": proof, "content_type": _upload_ct(file)})
     return {"file_id": str(fid)}
 
 @api.post("/public/onboarding/{token}/submit")
@@ -1147,13 +1165,13 @@ async def public_onboarding_open_upload(request: Request, proof: str, file: Uplo
     _rate_limit(request, "open-upload", 120)
     if proof not in PROOF_TYPES:
         raise HTTPException(status_code=400, detail="Invalid proof type")
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only images are allowed")
+    if not _ok_upload(file):
+        raise HTTPException(status_code=400, detail="Only images, PDF or ZIP files are allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD:
-        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
+        raise HTTPException(status_code=400, detail="File must be under 10 MB")
     fid = await onboard_fs.upload_from_stream(file.filename or f"{proof}.jpg", data,
-        metadata={"candidate_id": None, "proof": proof, "content_type": file.content_type, "via": "common_link"})
+        metadata={"candidate_id": None, "proof": proof, "content_type": _upload_ct(file), "via": "common_link"})
     return {"file_id": str(fid)}
 
 @api.post("/public/onboarding-open/submit")
@@ -1197,13 +1215,13 @@ async def hr_onboarding_upload(oid: str, proof: str, file: UploadFile = File(...
         raise HTTPException(status_code=400, detail="Candidate hasn't submitted onboarding details yet")
     if proof not in PROOF_TYPES:
         raise HTTPException(status_code=400, detail="Invalid proof type")
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only images are allowed")
+    if not _ok_upload(file):
+        raise HTTPException(status_code=400, detail="Only images, PDF or ZIP files are allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD:
-        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
+        raise HTTPException(status_code=400, detail="File must be under 10 MB")
     fid = await onboard_fs.upload_from_stream(file.filename or f"{proof}.jpg", data,
-        metadata={"candidate_id": ob["candidate_id"], "proof": proof, "content_type": file.content_type, "uploaded_by": user["id"]})
+        metadata={"candidate_id": ob["candidate_id"], "proof": proof, "content_type": _upload_ct(file), "uploaded_by": user["id"]})
     await db.onboarding.update_one({"id": oid}, {"$set": {f"answers.proofs.{proof}": {"file_id": str(fid)}}})
     await log_activity(user, "Onboarding proof uploaded", ob["candidate_id"], ob.get("candidate_name"), proof.title())
     return {"file_id": str(fid)}
@@ -1217,6 +1235,26 @@ async def get_onboarding_file(fid: str, user: dict = Depends(require_roles("hr",
     except Exception:
         raise HTTPException(status_code=404, detail="File not found")
     return _RawResponse(content=data, media_type=(stream.metadata or {}).get("content_type", "image/jpeg"))
+
+@api.delete("/onboarding/{oid}")
+async def delete_onboarding(oid: str, user: dict = Depends(require_roles("hr", "admin"))):
+    from bson import ObjectId
+    ob = await db.onboarding.find_one({"id": oid})
+    if not ob:
+        raise HTTPException(status_code=404, detail="Onboarding record not found")
+    for v in (((ob.get("answers") or {}).get("proofs")) or {}).values():
+        fid = (v or {}).get("file_id")
+        if fid:
+            try:
+                await onboard_fs.delete(ObjectId(fid))
+            except Exception:
+                pass
+    await db.onboarding.delete_one({"id": oid})
+    cid = ob.get("candidate_id")
+    if cid and not await db.onboarding.find_one({"candidate_id": cid}):
+        await db.candidates.update_one({"id": cid}, {"$set": {"onboarding_sent": False}})
+    await log_activity(user, "Onboarding deleted", cid, ob.get("candidate_name"), "")
+    return {"ok": True}
 
 app.include_router(api)
 
