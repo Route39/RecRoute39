@@ -1014,7 +1014,9 @@ from fastapi.responses import Response as _RawResponse
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 onboard_fs = AsyncIOMotorGridFSBucket(db, bucket_name="onboarding_files")
-PROOF_TYPES = ["aadhaar", "pan", "passbook", "licence"]
+PROOF_TYPES = ["aadhaar", "pan", "passbook", "payslip1", "payslip2", "payslip3"]
+REQUIRED_PROOFS = ["aadhaar", "pan", "passbook"]
+PAYSLIP_TYPES = ["payslip1", "payslip2", "payslip3"]
 MAX_UPLOAD = 5 * 1024 * 1024
 
 class OnboardingSubmit(BaseModel):
@@ -1023,10 +1025,41 @@ class OnboardingSubmit(BaseModel):
     whatsapp: str
     email: Optional[str] = ""
     emergency_contact: str
+    location: str = ""
     emergency_relationship: Optional[str] = ""
-    designation: str
-    salary: str
+
+    experience: str = ""
+    experience_years: Optional[str] = ""
+    experience_months: Optional[str] = "0"
     proofs: dict = {}
+
+def _check_onboarding(body):
+    exp = (body.experience or "").strip()
+    if exp not in ("Fresher", "Experienced"):
+        raise HTTPException(status_code=400, detail="Please select your experience (Fresher / Experienced)")
+    proofs = body.proofs or {}
+    for p in REQUIRED_PROOFS:
+        v = proofs.get(p) or {}
+        if not v.get("file_id") and not (v.get("reason") or "").strip():
+            raise HTTPException(status_code=400, detail=f"{p.title()}: upload a photo or give a reason")
+    if exp == "Experienced":
+        try:
+            yrs = float(body.experience_years or 0)
+        except ValueError:
+            yrs = 0
+        months = int(body.experience_months or 0)
+        if months < 0 or months > 11:
+            raise HTTPException(status_code=400, detail="Enter valid months of experience")
+
+        if yrs <= 0 or yrs > 60:
+            raise HTTPException(status_code=400, detail="Enter your years of experience")
+        for i, p in enumerate(PAYSLIP_TYPES, 1):
+            if not (proofs.get(p) or {}).get("file_id"):
+                raise HTTPException(status_code=400, detail=f"Upload your last 3 months payslips (payslip {i} of 3 is missing)")
+    else:
+        body.experience_years = ""
+        body.experience_months = "0"
+        body.proofs = {k: v for k, v in proofs.items() if k not in PAYSLIP_TYPES}
 
 def _wa_number(phone):
     d = "".join(ch for ch in (phone or "") if ch.isdigit())
@@ -1063,7 +1096,7 @@ async def create_onboarding_link(cid: str, user: dict = Depends(require_roles("h
 async def public_onboarding(token: str):
     ob = await _open_onboarding(token)
     c = await db.candidates.find_one({"id": ob["candidate_id"]}) or {}
-    return {"name": c.get("name", ""), "contact": c.get("phone", ""), "email": c.get("email", ""), "designation": c.get("designation", "")}
+    return {"name": c.get("name", ""), "contact": c.get("phone", ""), "email": c.get("email", "")}
 
 @api.post("/public/onboarding/{token}/upload")
 async def public_onboarding_upload(token: str, proof: str, file: UploadFile = File(...)):
@@ -1082,11 +1115,70 @@ async def public_onboarding_upload(token: str, proof: str, file: UploadFile = Fi
 @api.post("/public/onboarding/{token}/submit")
 async def public_onboarding_submit(token: str, body: OnboardingSubmit):
     ob = await _open_onboarding(token)
-    for p in PROOF_TYPES:
-        v = (body.proofs or {}).get(p) or {}
-        if not v.get("file_id") and not (v.get("reason") or "").strip():
-            raise HTTPException(status_code=400, detail=f"{p.title()}: upload a photo or give a reason")
+    _check_onboarding(body)
     await db.onboarding.update_one({"id": ob["id"]}, {"$set": {"answers": body.model_dump(), "status": "submitted", "submitted_at": now_iso()}})
+    return {"ok": True}
+
+# ---- Common (token-less) onboarding link: one link for every candidate ----
+from collections import defaultdict as _dd, deque as _dq
+import time as _time
+_open_hits = _dd(_dq)
+
+def _rate_limit(request: Request, bucket: str, limit: int, window: int = 3600):
+    fwd = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")
+    ip = fwd.split(",")[0].strip()
+    q = _open_hits[(bucket, ip)]
+    now = _time.time()
+    while q and now - q[0] > window:
+        q.popleft()
+    if len(q) >= limit:
+        raise HTTPException(status_code=429, detail="Too many attempts. Please try again after some time.")
+    q.append(now)
+
+def _last10(v):
+    return "".join(ch for ch in (v or "") if ch.isdigit())[-10:]
+
+@api.get("/public/onboarding-open")
+async def public_onboarding_open():
+    return {"open": True}
+
+@api.post("/public/onboarding-open/upload")
+async def public_onboarding_open_upload(request: Request, proof: str, file: UploadFile = File(...)):
+    _rate_limit(request, "open-upload", 120)
+    if proof not in PROOF_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid proof type")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only images are allowed")
+    data = await file.read()
+    if len(data) > MAX_UPLOAD:
+        raise HTTPException(status_code=400, detail="Image must be under 5 MB")
+    fid = await onboard_fs.upload_from_stream(file.filename or f"{proof}.jpg", data,
+        metadata={"candidate_id": None, "proof": proof, "content_type": file.content_type, "via": "common_link"})
+    return {"file_id": str(fid)}
+
+@api.post("/public/onboarding-open/submit")
+async def public_onboarding_open_submit(request: Request, body: OnboardingSubmit):
+    _rate_limit(request, "open-submit", 30)
+    _check_onboarding(body)
+    nums = {_last10(body.contact), _last10(body.whatsapp)} - {""}
+    cands = await db.candidates.find({}, {"_id": 0, "id": 1, "name": 1, "phone": 1}).to_list(10000)
+    match = next((c for c in cands if _last10(c.get("phone")) in nums), None)
+    cid = match["id"] if match else None
+    now = now_iso()
+    if cid:
+        if await db.onboarding.find_one({"candidate_id": cid, "status": "submitted"}):
+            raise HTTPException(status_code=409, detail="Your details are already submitted. Please contact Route39 HR to make changes.")
+        pending = await db.onboarding.find_one({"candidate_id": cid, "status": "sent"})
+        if pending:
+            await db.onboarding.update_one({"id": pending["id"]}, {"$set": {"answers": body.model_dump(), "status": "submitted", "submitted_at": now}})
+            await log_activity({"name": "Candidate (common link)", "role": "candidate"}, "Onboarding form submitted", cid, match.get("name"), "")
+            return {"ok": True}
+        await db.candidates.update_one({"id": cid}, {"$set": {"onboarding_sent": True}})
+    name = (match or {}).get("name") or body.name.strip()
+    await db.onboarding.insert_one({"id": str(uuid.uuid4()), "token": _secrets.token_urlsafe(24), "candidate_id": cid,
+        "candidate_name": name, "status": "submitted", "created_by": None, "created_at": now,
+        "answers": body.model_dump(), "submitted_at": now, "source": "common_link"})
+    await log_activity({"name": "Candidate (common link)", "role": "candidate"}, "Onboarding form submitted", cid, name, "")
     return {"ok": True}
 
 @api.get("/onboarding")
