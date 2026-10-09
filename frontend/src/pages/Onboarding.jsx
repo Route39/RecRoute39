@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, formatDateTime } from "@/lib/api";
+import { api, formatApiError, formatDateTime } from "@/lib/api";
 import { OnboardingView } from "@/components/Onboarding";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -24,6 +24,18 @@ export default function OnboardingPage() {
   }).catch(() => setRows([]));
 
   useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const removeOnboarding = async (o) => {
+    if (!window.confirm(`Delete onboarding form of ${o.candidate_name}? Its uploaded documents will also be deleted. This cannot be undone.`)) return;
+    try {
+      await api.delete(`/onboarding/${o.id}`);
+      toast.success("Onboarding form deleted");
+      if (sel?.id === o.id) setSel(null);
+      refresh();
+    } catch (e) {
+      toast.error(formatApiError(e.response?.data?.detail));
+    }
+  };
 
   const locations = ["All", "Bangalore", "Coimbatore", "Chennai", "Tirupur"];
 
@@ -175,8 +187,9 @@ export default function OnboardingPage() {
                       View onboarding details
                     </span>
 
-                    <span className="text-sm font-medium text-blue-600">
-                      View Details →
+                    <span className="flex items-center gap-4">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); removeOnboarding(o); }} className="text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
+                      <span className="text-sm font-medium text-blue-600">View Details →</span>
                     </span>
                   </div>
 
@@ -187,7 +200,7 @@ export default function OnboardingPage() {
         )}
       </div>
       <Dialog open={!!sel} onOpenChange={(v) => !v && setSel(null)}>
-        <DialogContent className="bg-white max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-white max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="font-display">{sel?.candidate_name}</DialogTitle></DialogHeader>
           {sel && <><OnboardingView ob={sel} canUpload onChanged={refresh} />{sel.candidate_id ? <Link to={`/candidates/${sel.candidate_id}`} className="text-sm text-blue-600 underline">Open candidate profile →</Link> : <span className="text-xs text-slate-400">Not matched to a candidate profile (phone number not found).</span>}</>}
         </DialogContent>
