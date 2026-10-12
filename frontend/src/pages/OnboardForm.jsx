@@ -150,6 +150,7 @@ export default function OnboardForm() {
   const [sameWa, setSameWa] = useState(false);
 
   const experienced = isExperienced(form);
+  const proofList = PROOFS.filter((x) => experienced || x.key !== "bank_statement");
   const visibleFields = FIELDS.filter((f) => !f.showIf || f.showIf(form));
 
   useEffect(() => {
@@ -170,7 +171,7 @@ export default function OnboardForm() {
     setForm((x) => ({ ...x, [f.key]: v, ...(f.key === "contact" && sameWa ? { whatsapp: v } : {}), ...(f.key === "experience" && v !== "Experienced" ? { experience_years: "", experience_months: "" } : {}) }));
     // Fresher selected -> payslips must not be sent / visible
     if (f.key === "experience" && v !== "Experienced") {
-      setProofs((p) => { const n = { ...p }; PAYSLIPS.forEach((s) => delete n[s.key]); return n; });
+      setProofs((p) => { const n = { ...p }; PAYSLIPS.forEach((s) => delete n[s.key]); delete n.bank_statement; return n; });
       setErrors((e) => { const n = { ...e }; PAYSLIPS.forEach((s) => delete n[s.key]); delete n.experience_years; return n; });
     }
     setErrors((e) => ({ ...e, [f.key]: "" }));
@@ -187,7 +188,7 @@ export default function OnboardForm() {
       else if (f.key === "experience_months" && (v === "" || parseInt(v, 10) < 0 || parseInt(v, 10) > 11)) e[f.key] = "Select valid months of experience";
     });
     if (form.emergency_relationship === "Other" && !(form.relationship_other || "").trim()) e.emergency_relationship = "Please type the relationship";
-    PROOFS.forEach((p) => {
+    proofList.forEach((p) => {
       const v = proofs[p.key] || {};
       if (!v.file_id && !(v.reason || "").trim()) e[p.key] = "Please upload a file";
     });
@@ -230,7 +231,7 @@ export default function OnboardForm() {
     setBusy(true);
     try {
       const clean = {};
-      PROOFS.forEach(({ key }) => { const p = proofs[key] || {}; clean[key] = { file_id: p.file_id || null, reason: p.file_id ? "" : (p.reason || "") }; });
+      proofList.forEach(({ key }) => { const p = proofs[key] || {}; clean[key] = { file_id: p.file_id || null, reason: p.file_id ? "" : (p.reason || "") }; });
       if (experienced) PAYSLIPS.forEach(({ key }) => { clean[key] = { file_id: (proofs[key] || {}).file_id || null, reason: "" }; });
       await api.post(`${token ? `/public/onboarding/${token}` : "/public/onboarding-open"}/submit`, {
         ...form,
@@ -344,7 +345,7 @@ export default function OnboardForm() {
 
       {step === 2 && (
         <>
-          {PROOFS.map((pr) => (
+          {proofList.map((pr) => (
             <ProofField key={pr.key} pr={pr} token={token} error={errors[pr.key]} value={proofs[pr.key] || {}} onChange={proofChange(pr.key)} />
           ))}
           {experienced && (

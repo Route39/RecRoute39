@@ -37,7 +37,7 @@ JWT_ALGORITHM = "HS256"
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() == "true"
 COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "none")
-ALLOWED_ORIGINS = [FRONTEND_URL, "http://localhost:3000"]
+ALLOWED_ORIGINS = [FRONTEND_URL, "http://localhost:3000"] + [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
