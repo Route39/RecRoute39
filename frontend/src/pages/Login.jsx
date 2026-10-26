@@ -5,6 +5,7 @@ import { api, formatApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Eye, EyeOff } from "lucide-react";
 import { Route, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,6 +19,7 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -68,15 +70,15 @@ export default function Login() {
 
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Phone Number</Label>
-              <Input data-testid="login-email-input" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter Number" required />
+              <Label>Mobile Number</Label>
+              <Input data-testid="login-email-input" type="tel" inputMode="numeric" maxLength={10} value={email} onChange={(e) => setEmail(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="Enter 10-digit mobile number" required />
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label>Password</Label>
                 <Link to="/forgot-password" className="text-xs text-blue-600 hover:underline" data-testid="forgot-password-link">Forgot password?</Link>
               </div>
-              <Input data-testid="login-password-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+              <div className="relative"><Input data-testid="login-password-input" type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="pr-10" required /><button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700" tabIndex={-1}>{showPwd ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
             </div>
             <Button data-testid="login-submit-button" type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 h-11">
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Sign in

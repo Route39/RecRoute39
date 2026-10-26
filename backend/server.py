@@ -20,7 +20,10 @@ import requests
 from fastapi import FastAPI, APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Header, Query, BackgroundTasks
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
+from bson import ObjectId
+import asyncio
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
@@ -32,6 +35,11 @@ logger = logging.getLogger("recroute39")
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
+
+# Resumes are stored inside MongoDB (GridFS), not in external object storage.
+resume_fs = AsyncIOMotorGridFSBucket(db, bucket_name="resume_files")
+RESUME_EXTS = {"pdf", "doc", "docx", "png", "jpg", "jpeg", "txt"}
+MAX_RESUME = 10 * 1024 * 1024
 
 JWT_ALGORITHM = "HS256"
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
@@ -271,10 +279,12 @@ async def login(body: LoginBody, request: Request, response: Response):
     email = body.email.strip().lower()
     ip = request.client.host if request.client else "unknown"
     await check_lockout(ip, email)
-    user = await db.users.find_one({"$or": [{"email": email}, {"phone": email}]})
+    _d = re.sub(r"\D", "", email)[-10:]
+    _ph = [email] + ([_d, "+91" + _d, "91" + _d, "+91 " + _d] if len(_d) == 10 else [])
+    user = await db.users.find_one({"$or": [{"email": email}, {"phone": {"$in": _ph}}]})
     if not user or not verify_password(body.password, user["password_hash"]):
         await db.login_attempts.insert_one({"identifier": f"{ip}:{email}", "email": email, "at": now_iso()})
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid mobile number or password")
     await db.login_attempts.delete_many({"identifier": f"{ip}:{email}"})
     ver = user.get("token_version", 0)
     set_auth_cookies(response, create_access_token(user["id"], email, ver), create_refresh_token(user["id"], ver))
@@ -624,6 +634,12 @@ async def delete_candidate(cid: str, user: dict = Depends(require_roles("hr", "a
             await onboard_fs.delete(f._id)
     except Exception:
         pass
+    rid = (c.get("resume") or {}).get("file_id")
+    if rid:
+        try:
+            await resume_fs.delete(ObjectId(rid))
+        except Exception:
+            pass
     await db.onboarding.delete_many({"candidate_id": cid})
     await db.candidates.delete_one({"id": cid})
     await log_activity(user, "Candidate deleted", None, c["name"], c.get("designation", ""))
@@ -657,14 +673,26 @@ async def upload_resume(cid: str, file: UploadFile = File(...), user: dict = Dep
     c = await db.candidates.find_one({"id": cid})
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "bin"
-    path = f"{APP_NAME}/resumes/{cid}/{uuid.uuid4()}.{ext}"
+    name = file.filename or "resume"
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext not in RESUME_EXTS:
+        raise HTTPException(status_code=400, detail="Only PDF, DOC, DOCX, PNG, JPG or TXT files are allowed")
     data = await file.read()
-    ctype = file.content_type or MIME_TYPES.get(ext, "application/octet-stream")
-    result = put_object(path, data, ctype)
-    resume = {"storage_path": result["path"], "original_filename": file.filename, "content_type": ctype, "size": result.get("size", len(data)), "uploaded_at": now_iso()}
+    if not data:
+        raise HTTPException(status_code=400, detail="File is empty")
+    if len(data) > MAX_RESUME:
+        raise HTTPException(status_code=400, detail="Resume must be under 10 MB")
+    ctype = MIME_TYPES[ext]
+    fid = await resume_fs.upload_from_stream(name, data, metadata={"candidate_id": cid, "content_type": ctype, "uploaded_by": user["id"]})
+    old = c.get("resume") or {}
+    resume = {"storage": "gridfs", "file_id": str(fid), "original_filename": name, "content_type": ctype, "size": len(data), "uploaded_at": now_iso()}
     await db.candidates.update_one({"id": cid}, {"$set": {"resume": resume, "updated_at": now_iso()}})
-    await log_activity(user, "Resume uploaded", cid, c["name"], file.filename)
+    if old.get("file_id"):
+        try:
+            await resume_fs.delete(ObjectId(old["file_id"]))
+        except Exception:
+            pass
+    await log_activity(user, "Resume uploaded", cid, c["name"], name)
     return resume
 
 @api.get("/candidates/{cid}/resume")
@@ -685,10 +713,22 @@ async def download_resume(request: Request, cid: str, authorization: str = Heade
     c = await db.candidates.find_one({"id": cid})
     if not c or not c.get("resume"):
         raise HTTPException(status_code=404, detail="Resume not found")
-    data, ctype = get_object(c["resume"]["storage_path"])
-    fname = c["resume"]["original_filename"]
-    return StarletteResponse(content=data, media_type=c["resume"].get("content_type", ctype),
-                             headers={"Content-Disposition": f'inline; filename="{fname}"'})
+    resume = c["resume"]
+    fname = (resume.get("original_filename") or "resume").replace('"', "").replace("\r", "").replace("\n", "")
+    if resume.get("file_id"):
+        try:
+            stream = await resume_fs.open_download_stream(ObjectId(resume["file_id"]))
+            data = await stream.read()
+        except Exception:
+            raise HTTPException(status_code=404, detail="Resume file not found")
+        ctype = resume.get("content_type") or "application/octet-stream"
+    else:  # old resume still in external storage (copied into MongoDB at startup)
+        try:
+            data, ctype = await run_in_threadpool(get_object, resume["storage_path"])
+        except Exception:
+            raise HTTPException(status_code=502, detail="Resume storage unavailable")
+    return StarletteResponse(content=data, media_type=resume.get("content_type") or ctype,
+                             headers={"Content-Disposition": f'inline; filename="{fname}"', "X-Content-Type-Options": "nosniff"})
 
 @api.post("/candidates/{cid}/updates")
 async def add_update(cid: str, body: UpdateBody, user: dict = Depends(require_roles("hr", "admin"))):
@@ -1380,6 +1420,24 @@ async def seed():
                                   "salary_min": smin, "salary_max": smax, "experience": exp, "assigned_hr_id": hr["id"],
                                   "assigned_hr_name": hr["name"], "status": "Active", "created_by": admin["id"], "created_at": now_iso()})
 
+async def migrate_resumes():
+    """One-time: copy resumes still in external object storage into MongoDB (GridFS)."""
+    done = failed = 0
+    q = {"resume.storage_path": {"$exists": True}, "resume.file_id": {"$exists": False}}
+    async for c in db.candidates.find(q, {"id": 1, "resume": 1}):
+        r = c["resume"]
+        try:
+            data, _ = await run_in_threadpool(get_object, r["storage_path"])
+            fid = await resume_fs.upload_from_stream(r.get("original_filename") or "resume", data,
+                metadata={"candidate_id": c["id"], "content_type": r.get("content_type"), "migrated": True})
+            await db.candidates.update_one({"id": c["id"], "resume.storage_path": r["storage_path"]},
+                {"$set": {"resume.storage": "gridfs", "resume.file_id": str(fid), "resume.size": len(data)}})
+            done += 1
+        except Exception as e:
+            failed += 1
+            logger.error(f"Resume migration failed for {c.get('id')}: {e}")
+    logger.info(f"Resume migration: {done} moved to MongoDB, {failed} failed")
+
 @app.on_event("startup")
 async def startup():
     try:
@@ -1389,6 +1447,7 @@ async def startup():
         logger.error(f"Storage init failed: {e}")
     await seed()
     logger.info("Seed complete")
+    app.state.resume_migration = asyncio.create_task(migrate_resumes())
 
 @app.on_event("shutdown")
 async def shutdown():
