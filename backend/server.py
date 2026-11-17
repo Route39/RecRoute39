@@ -462,6 +462,7 @@ async def update_user(
 @api.delete("/users/{uid}")
 async def delete_user(
     uid: str,
+    transfer_to: Optional[str] = None,
     user: dict = Depends(require_roles("admin")),
 ):
     target = await db.users.find_one({"id": uid})
@@ -475,6 +476,13 @@ async def delete_user(
     assigned_count = await db.candidates.count_documents({
         "assigned_hr_id": uid
     })
+
+    if assigned_count > 0 and transfer_to:
+        new_hr = await db.users.find_one({"id": transfer_to, "role": "hr"})
+        if not new_hr or transfer_to == uid:
+            raise HTTPException(status_code=400, detail="Invalid HR selected for transfer")
+        await db.candidates.update_many({"assigned_hr_id": uid}, {"$set": {"assigned_hr_id": transfer_to, "assigned_hr_name": new_hr.get("name", "")}})
+        assigned_count = 0
 
     if assigned_count > 0:
         raise HTTPException(

@@ -36,6 +36,8 @@ export default function Monitoring() {
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [transferTo, setTransferTo] = useState("");
+  const hrCount = (x) => x?.added ?? x?.total ?? x?.candidates ?? x?.counts?.added ?? x?.stats?.added ?? x?.metrics?.added ?? 0;
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -132,6 +134,7 @@ export default function Monitoring() {
   };
 
   const deleteHR = async (hr) => {
+    setTransferTo("");
     setDeleteTarget(hr);
   };
 
@@ -140,7 +143,7 @@ export default function Monitoring() {
 
     try {
       setBusy(true);
-      await api.delete(`/users/${deleteTarget.hr.id}`);
+      await api.delete(`/users/${(deleteTarget?.hr?.id || deleteTarget?.id)}${transferTo ? `?transfer_to=${transferTo}` : ""}`);
       toast.success("HR deleted successfully");
       setDeleteTarget(null);
       await load();
@@ -372,11 +375,25 @@ export default function Monitoring() {
               <DialogDescription className="text-center text-sm leading-6">
                 Are you sure you want to delete HR{" "}
                 <span className="font-semibold text-slate-900">
-                  {deleteTarget?.hr?.name}
+                  {deleteTarget?.hr?.name || deleteTarget?.name}
                 </span>
                 ? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
+
+            <div className="mt-4 text-left">
+              <p className="mb-2 text-sm text-slate-700"><span className="font-semibold">{deleteTarget?.hr?.name || deleteTarget?.name}</span> has <span className="font-semibold text-red-600">{hrCount((data?.hrs || []).find((x) => (x?.hr?.id || x?.id) === (deleteTarget?.hr?.id || deleteTarget?.id)))}</span> candidate(s) assigned</p>
+              <label className="text-sm font-medium text-slate-700">Transfer candidates to</label>
+              <select value={transferTo} onChange={(e) => setTransferTo(e.target.value)} disabled={busy}
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+                <option value="">Don't transfer</option>
+                {(data?.hrs || [])
+                  .map((x) => ({ id: x?.hr?.id || x?.id, name: x?.hr?.name || x?.name, count: hrCount(x) }))
+                  .filter((x) => x.id && x.id !== (deleteTarget?.hr?.id || deleteTarget?.id))
+                  .map((x) => <option key={x.id} value={x.id}>{x.name} ({x.count} candidates)</option>)}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">Required if this HR has candidates assigned.</p>
+            </div>
 
             <DialogFooter className="mt-6 grid grid-cols-2 gap-3 sm:flex sm:justify-end">
               <Button
