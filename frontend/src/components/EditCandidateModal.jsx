@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +27,7 @@ const toForm = (c) => ({
   assigned_hr_id: c?.assigned_hr_id || "",
   job_id: c?.job_id || "",
   relevant_job: c?.relevant_job || "",
+  remarks: c?.remarks || "",
 });
 
 export default function EditCandidateModal({ open, onOpenChange, candidate, onUpdated }) {
@@ -52,8 +54,8 @@ export default function EditCandidateModal({ open, onOpenChange, candidate, onUp
     try {
       const payload = {
         ...form,
-        current_salary: form.current_salary ? Number(form.current_salary) : null,
-        expected_salary: form.expected_salary ? Number(form.expected_salary) : null,
+        current_salary: form.current_salary?.trim() ? form.current_salary.trim() : null,
+        expected_salary: form.expected_salary?.trim() ? form.expected_salary.trim() : null,
         assigned_hr_id: form.assigned_hr_id || null,
         job_id: form.job_id || null,
       };
@@ -120,11 +122,11 @@ export default function EditCandidateModal({ open, onOpenChange, candidate, onUp
           </div>
           <div className="space-y-1.5">
             <Label>Current Salary (₹)</Label>
-            <Input data-testid="edit-candidate-current-salary-input" type="text" inputMode="numeric" value={form.current_salary} onChange={(e) => set("current_salary", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 25000" />
+            <Input data-testid="edit-candidate-current-salary-input" type="text" value={form.current_salary} onChange={(e) => set("current_salary", e.target.value)} placeholder="e.g. 25000 / 3.5 LPA" />
           </div>
           <div className="space-y-1.5">
             <Label>Expected Salary (₹)</Label>
-            <Input data-testid="edit-candidate-expected-salary-input" type="text" inputMode="numeric" value={form.expected_salary} onChange={(e) => set("expected_salary", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 35000" />
+            <Input data-testid="edit-candidate-expected-salary-input" type="text" value={form.expected_salary} onChange={(e) => set("expected_salary", e.target.value)} placeholder="e.g. 35000 / Negotiable" />
           </div>
           <div className="space-y-1.5">
             <Label>Experience</Label>
@@ -133,6 +135,10 @@ export default function EditCandidateModal({ open, onOpenChange, candidate, onUp
           <div className="space-y-1.5">
             <Label>Relevant Job</Label>
             <Input data-testid="edit-candidate-job-input" value={form.relevant_job} onChange={(e) => set("relevant_job", e.target.value)} placeholder="e.g. Sales Executive (optional)" />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>HR Update / Remarks</Label>
+            <Textarea data-testid="edit-candidate-remarks-input" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} placeholder="Note about the candidate" rows={2} />
           </div>
         </div>
 

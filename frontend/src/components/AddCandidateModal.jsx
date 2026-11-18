@@ -50,8 +50,8 @@ export default function AddCandidateModal({ open, onOpenChange, onCreated }) {
     try {
       const payload = {
         ...form,
-        current_salary: form.current_salary ? Number(form.current_salary) : null,
-        expected_salary: form.expected_salary ? Number(form.expected_salary) : null,
+        current_salary: form.current_salary?.trim() ? form.current_salary.trim() : null,
+        expected_salary: form.expected_salary?.trim() ? form.expected_salary.trim() : null,
         assigned_hr_id: form.assigned_hr_id || null,
         job_id: form.job_id || null,
       };
@@ -136,11 +136,11 @@ export default function AddCandidateModal({ open, onOpenChange, onCreated }) {
           </div>
           <div className="space-y-1.5">
             <Label>Current Salary (₹)</Label>
-            <Input data-testid="candidate-current-salary-input" type="text" inputMode="numeric" value={form.current_salary} onChange={(e) => set("current_salary", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 25000" />
+            <Input data-testid="candidate-current-salary-input" type="text" value={form.current_salary} onChange={(e) => set("current_salary", e.target.value)} placeholder="e.g. 25000 / 3.5 LPA" />
           </div>
           <div className="space-y-1.5">
             <Label>Expected Salary (₹)</Label>
-            <Input data-testid="candidate-expected-salary-input" type="text" inputMode="numeric" value={form.expected_salary} onChange={(e) => set("expected_salary", e.target.value.replace(/\D/g, ""))} placeholder="e.g. 35000" />
+            <Input data-testid="candidate-expected-salary-input" type="text" value={form.expected_salary} onChange={(e) => set("expected_salary", e.target.value)} placeholder="e.g. 35000 / Negotiable" />
           </div>
           <div className="space-y-1.5">
             <Label>Experience</Label>

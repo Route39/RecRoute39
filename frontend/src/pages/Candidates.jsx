@@ -17,6 +17,7 @@ export default function Candidates() {
   const [rows, setRows] = useState(null);
   const [filters, setFilters] = useState({ designations: [], cities: [], hrs: [], sources: [], statuses: [] });
   const [search, setSearch] = useState(params.get("search") || "");
+  useEffect(() => { setSearch(params.get("search") || ""); }, [params]);
   const [showFilters, setShowFilters] = useState(false);
   const [f, setF] = useState({ designation: "all", city: "all", hr: "all", source: "all", status: params.get("status") || "all", date_from: "", date_to: "" });
 
@@ -48,7 +49,7 @@ export default function Candidates() {
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input data-testid="candidate-search-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or phone..." className="pl-9" />
+            <Input data-testid="candidate-search-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, phone or designation..." className="pl-9" />
           </div>
           <Button data-testid="toggle-filters-button" variant="outline" onClick={() => setShowFilters((s) => !s)} className="gap-1.5 shrink-0">
             <SlidersHorizontal className="w-4 h-4" /> <span className="hidden sm:inline">Filters</span>

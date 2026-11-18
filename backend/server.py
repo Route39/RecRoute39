@@ -7,7 +7,7 @@ import hashlib
 import secrets
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from dotenv import load_dotenv
 
@@ -227,8 +227,8 @@ class CandidateBody(BaseModel):
     city: Optional[str] = ""
     branch: Optional[str] = ""
     source: Optional[str] = "Other"
-    current_salary: Optional[float] = None
-    expected_salary: Optional[float] = None
+    current_salary: Optional[Union[float, str]] = None
+    expected_salary: Optional[Union[float, str]] = None
     experience: Optional[str] = ""
     remarks: Optional[str] = ""
     relevant_job: Optional[str] = ""
@@ -558,7 +558,8 @@ async def list_candidates(
 ):
     q = {}
     if search:
-        q["$or"] = [{"name": {"$regex": search, "$options": "i"}}, {"phone": {"$regex": search, "$options": "i"}}]
+        rx = {"$regex": re.escape(search.strip()), "$options": "i"}
+        q["$or"] = [{"name": rx}, {"phone": rx}, {"designation": rx}, {"email": rx}, {"city": rx}]
     if designation and designation != "all":
         q["designation"] = designation
     if city and city != "all":
@@ -664,7 +665,7 @@ async def update_candidate(cid: str, body: CandidateBody, user: dict = Depends(r
         "name": body.name.strip(), "phone": body.phone.strip(), "email": (body.email or "").strip(), "designation": body.designation.strip(),
         "city": (body.city or "").strip(), "branch": getattr(body, "branch", None) or c.get("branch", ""), "source": body.source or c.get("source"),
         "current_salary": body.current_salary, "expected_salary": body.expected_salary,
-        "experience": body.experience or "", "assigned_hr_id": hr_id,
+        "experience": body.experience or "", "remarks": body.remarks if body.remarks is not None else c.get("remarks", ""), "assigned_hr_id": hr_id,
         "assigned_hr_name": hr_user["name"] if hr_user else c.get("assigned_hr_name"),
         "job_id": body.job_id, "relevant_job": getattr(body, "relevant_job", None) or c.get("relevant_job", ""), "updated_at": now_iso(),
         # FIX: only overwrite created_at ("Added") when the client explicitly sent one

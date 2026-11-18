@@ -43,6 +43,18 @@ export default function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [results, setResults] = useState([]);
+  const [showRes, setShowRes] = useState(false);
+  useEffect(() => {
+    const t = search.trim();
+    if (t.length < 2) { setResults([]); return; }
+    const id = setTimeout(() => {
+      api.get("/candidates", { params: { search: t } })
+        .then((r) => { const d = r.data; const list = Array.isArray(d) ? d : (d.items || d.candidates || []); setResults(list.slice(0, 8)); })
+        .catch(() => setResults([]));
+    }, 300);
+    return () => clearTimeout(id);
+  }, [search]);
   const [notifs, setNotifs] = useState([]);
   const [adminMessages, setAdminMessages] = useState([]);
   const [unreadAdminMessages, setUnreadAdminMessages] = useState(0);
@@ -85,7 +97,7 @@ export default function Layout({ children }) {
 
   const links = NAV.filter((n) => n.roles.includes(role));
   const handleLogout = async () => { await logout(); navigate("/login"); };
-  const doSearch = (e) => { e.preventDefault(); navigate(`/candidates?search=${encodeURIComponent(search)}`); };
+  const doSearch = (e) => { e.preventDefault(); setShowRes(false); navigate(`/candidates?search=${encodeURIComponent(search)}`); };
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -136,7 +148,15 @@ export default function Layout({ children }) {
             </Button>
             <form onSubmit={doSearch} className="relative max-w-xs w-full hidden sm:block">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input data-testid="header-search-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search candidates..." className="pl-9 h-9 bg-slate-50 border-slate-200 focus-visible:bg-white" />
+              <Input data-testid="header-search-input" value={search} onChange={(e) => { setSearch(e.target.value); setShowRes(true); }} onFocus={() => setShowRes(true)} onBlur={() => setTimeout(() => setShowRes(false), 200)} placeholder="Search name, phone, designation..." className="pl-9 h-9 bg-slate-50 border-slate-200 focus-visible:bg-white" />
+              {showRes && search.trim().length >= 2 && (
+                <div className="absolute left-0 right-0 top-11 z-50 bg-white border border-slate-200 rounded-lg shadow-lg max-h-80 overflow-auto">
+                  {results.length === 0 ? <div className="px-3 py-2 text-sm text-slate-500">No candidates found</div> : results.map((c) => (
+                    <button type="button" key={c.id || c._id} onMouseDown={() => { setShowRes(false); setSearch(""); navigate(`/candidates/${c.id || c._id}`); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                      <div className="text-sm font-medium text-slate-800">{c.name}</div>
+                      <div className="text-xs text-slate-500">{[c.phone, c.designation, c.status].filter(Boolean).join(" • ")}</div>
+                    </button>))}
+                </div>)}
             </form>
           </div>
 
